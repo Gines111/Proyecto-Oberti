@@ -182,8 +182,14 @@ function renderCalendar(){
       });
     });
     listEl.querySelectorAll('.event-del').forEach(function(btn){
-      btn.addEventListener('click', function(){
-        if(db && state.isAdmin) deleteDoc(doc(eventsCol, btn.dataset.id));
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        if(!db || !state.isAdmin) return;
+        var ev = state.events.find(function(x){ return x.id===btn.dataset.id; });
+        var nombre = ev ? ev.titulo : 'esta fecha';
+        if(confirm('¿Eliminar "'+nombre+'"? No se puede deshacer.')){
+          deleteDoc(doc(eventsCol, btn.dataset.id));
+        }
       });
     });
   }
@@ -351,7 +357,11 @@ function renderChildList(){
     btn.addEventListener('click', function(){
       if(!db || !state.isAdmin) return;
       var c = state.children.find(function(x){return x.id===btn.dataset.toggle;});
-      if(c) updateDoc(doc(childrenCol, c.id), {activo: c.activo===false});
+      if(!c) return;
+      var reactivando = c.activo===false;
+      if(reactivando || confirm('¿Dar de baja a '+c.nombre+'? Podrás reactivarlo/a cuando quieras; su historial de asistencia se conserva.')){
+        updateDoc(doc(childrenCol, c.id), {activo: reactivando});
+      }
     });
   });
 }
