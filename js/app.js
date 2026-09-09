@@ -40,6 +40,7 @@ var state = {
   calMonth:new Date().getMonth(),
   selectedDate:todayISO(),
   editingChildId:null,
+  editingEventId:null,
   isAdmin:false,
   childSearch:''
 };
@@ -140,8 +141,18 @@ function renderCalendar(){
     var out = cellDate.getMonth() !== state.calMonth;
     var evs = eventsByDate[iso] || [];
     var cls = 'cal-cell'+(out?' out':'')+(iso===today?' today':'');
-    html += '<div class="'+cls+'"><span class="n">'+cellDate.getDate()+'</span>';
-    if(evs.length){
+    if(state.isAdmin) cls += ' clickable';
+    var tooltip = '';
+    if(evs.length===1){
+      cls += ' has-event tipo-'+evs[0].tipo;
+      tooltip = evs[0].titulo + (evs[0].descripcion ? '\n'+evs[0].descripcion : '');
+    } else if(evs.length>1){
+      cls += ' has-event multi';
+      tooltip = evs.map(function(ev){ return '• '+ev.titulo; }).join('\n');
+    }
+    html += '<div class="'+cls+'" data-date="'+iso+'"'+(tooltip?' data-tooltip="'+escapeHtml(tooltip)+'"':'')+'>'
+      + '<span class="n">'+cellDate.getDate()+'</span>';
+    if(evs.length>1){
       html += '<div class="dot-wrap">'+evs.map(function(ev){return '<span class="ev-dot tipo-'+ev.tipo+'"></span>';}).join('')+'</div>';
     }
     html += '</div>';
@@ -155,7 +166,7 @@ function renderCalendar(){
   } else {
     listEl.innerHTML = '<div class="event-list">' + upcoming.map(function(ev){
       var d = new Date(ev.fecha+'T00:00:00');
-      return '<div class="event-item">'
+      return '<div class="event-item'+(state.isAdmin?' clickable':'')+'" data-id="'+ev.id+'">'
         + '<div class="event-date">'+d.getDate()+'<small>'+MESES_ABR[d.getMonth()]+'</small></div>'
         + '<div class="event-body"><div class="event-title">'+escapeHtml(ev.titulo)+'</div>'
         + (ev.descripcion ? '<div class="event-desc">'+escapeHtml(ev.descripcion)+'</div>' : '') + '</div>'
@@ -163,6 +174,13 @@ function renderCalendar(){
         + (state.isAdmin ? '<button class="event-del" data-id="'+ev.id+'" title="Eliminar" aria-label="Eliminar fecha">×</button>' : '')
         + '</div>';
     }).join('') + '</div>';
+    listEl.querySelectorAll('.event-item').forEach(function(item){
+      item.addEventListener('click', function(e){
+        if(!state.isAdmin || e.target.closest('.event-del')) return;
+        var ev = state.events.find(function(x){ return x.id===item.dataset.id; });
+        if(ev) startEditEvent(ev);
+      });
+    });
     listEl.querySelectorAll('.event-del').forEach(function(btn){
       btn.addEventListener('click', function(){
         if(db && state.isAdmin) deleteDoc(doc(eventsCol, btn.dataset.id));
@@ -180,6 +198,51 @@ document.getElementById('calNext').addEventListener('click', function(){
   renderCalendar();
 });
 
+function renderEventForm(){
+  var editing = state.editingEventId;
+  document.getElementById('eventFormTitle').textContent = editing ? 'Editar fecha' : 'Añadir fecha';
+  document.getElementById('evSubmitBtn').textContent = editing ? 'Guardar cambios' : 'Añadir fecha';
+  document.getElementById('evCancelBtn').hidden = !editing;
+}
+
+function startNewEvent(fecha){
+  state.editingEventId = null;
+  document.getElementById('eventForm').reset();
+  document.getElementById('evFecha').value = fecha;
+  renderEventForm();
+  document.getElementById('eventForm').scrollIntoView({behavior:'smooth', block:'center'});
+  document.getElementById('evTitulo').focus();
+}
+
+function startEditEvent(ev){
+  state.editingEventId = ev.id;
+  document.getElementById('evFecha').value = ev.fecha;
+  document.getElementById('evTipo').value = ev.tipo;
+  document.getElementById('evTitulo').value = ev.titulo || '';
+  document.getElementById('evDesc').value = ev.descripcion || '';
+  renderEventForm();
+  document.getElementById('eventForm').scrollIntoView({behavior:'smooth', block:'center'});
+  document.getElementById('evTitulo').focus();
+}
+
+document.getElementById('calGrid').addEventListener('click', function(e){
+  if(!state.isAdmin) return;
+  var cell = e.target.closest('.cal-cell');
+  if(!cell || !cell.dataset.date) return;
+  var evs = state.events.filter(function(ev){ return ev.fecha===cell.dataset.date; });
+  if(evs.length){
+    startEditEvent(evs[0]);
+  } else {
+    startNewEvent(cell.dataset.date);
+  }
+});
+
+document.getElementById('evCancelBtn').addEventListener('click', function(){
+  state.editingEventId = null;
+  document.getElementById('eventForm').reset();
+  renderEventForm();
+});
+
 document.getElementById('eventForm').addEventListener('submit', function(e){
   e.preventDefault();
   if(!db || !state.isAdmin) return;
@@ -188,8 +251,14 @@ document.getElementById('eventForm').addEventListener('submit', function(e){
   var titulo = document.getElementById('evTitulo').value.trim();
   var descripcion = document.getElementById('evDesc').value.trim();
   if(!fecha || !titulo) return;
-  addDoc(eventsCol, {fecha:fecha, tipo:tipo, titulo:titulo, descripcion:descripcion, creado:Date.now()});
+  if(state.editingEventId){
+    updateDoc(doc(eventsCol, state.editingEventId), {fecha:fecha, tipo:tipo, titulo:titulo, descripcion:descripcion});
+  } else {
+    addDoc(eventsCol, {fecha:fecha, tipo:tipo, titulo:titulo, descripcion:descripcion, creado:Date.now()});
+  }
+  state.editingEventId = null;
   e.target.reset();
+  renderEventForm();
 });
 
 // ================= NIÑOS =================
