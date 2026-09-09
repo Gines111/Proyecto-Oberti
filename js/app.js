@@ -40,7 +40,8 @@ var state = {
   calMonth:new Date().getMonth(),
   selectedDate:todayISO(),
   editingChildId:null,
-  isAdmin:false
+  isAdmin:false,
+  childSearch:''
 };
 
 var db = null, auth = null;
@@ -141,7 +142,7 @@ function renderCalendar(){
     var cls = 'cal-cell'+(out?' out':'')+(iso===today?' today':'');
     html += '<div class="'+cls+'"><span class="n">'+cellDate.getDate()+'</span>';
     if(evs.length){
-      html += '<div class="dot-wrap">'+evs.map(function(){return '<span class="ev-dot"></span>';}).join('')+'</div>';
+      html += '<div class="dot-wrap">'+evs.map(function(ev){return '<span class="ev-dot tipo-'+ev.tipo+'"></span>';}).join('')+'</div>';
     }
     html += '</div>';
   }
@@ -158,7 +159,7 @@ function renderCalendar(){
         + '<div class="event-date">'+d.getDate()+'<small>'+MESES_ABR[d.getMonth()]+'</small></div>'
         + '<div class="event-body"><div class="event-title">'+escapeHtml(ev.titulo)+'</div>'
         + (ev.descripcion ? '<div class="event-desc">'+escapeHtml(ev.descripcion)+'</div>' : '') + '</div>'
-        + '<span class="chip event-type">'+TIPO_LABEL[ev.tipo]+'</span>'
+        + '<span class="chip event-type tipo-'+ev.tipo+'">'+TIPO_LABEL[ev.tipo]+'</span>'
         + (state.isAdmin ? '<button class="event-del" data-id="'+ev.id+'" title="Eliminar" aria-label="Eliminar fecha">×</button>' : '')
         + '</div>';
     }).join('') + '</div>';
@@ -198,6 +199,11 @@ function renderChildForm(){
   document.getElementById('chSubmitBtn').textContent = editing ? 'Guardar cambios' : 'Añadir';
   document.getElementById('chCancelBtn').style.display = editing ? 'inline-flex' : 'none';
 }
+
+document.getElementById('childSearch').addEventListener('input', function(e){
+  state.childSearch = e.target.value;
+  renderChildList();
+});
 
 document.getElementById('chCancelBtn').addEventListener('click', function(){
   state.editingChildId = null;
@@ -240,7 +246,15 @@ function renderChildList(){
     el.innerHTML = '<div class="empty">Todavía no hay niños registrados. Añade el primero arriba.</div>';
     return;
   }
-  var sorted = state.children.slice().sort(function(a,b){
+  var q = state.childSearch.trim().toLowerCase();
+  var filtered = q
+    ? state.children.filter(function(c){ return (c.nombre||'').toLowerCase().indexOf(q)!==-1; })
+    : state.children;
+  if(!filtered.length){
+    el.innerHTML = '<div class="empty">Ningún niño coincide con "'+escapeHtml(state.childSearch.trim())+'".</div>';
+    return;
+  }
+  var sorted = filtered.slice().sort(function(a,b){
     if(!!a.activo !== !!b.activo) return a.activo ? -1 : 1;
     return (a.nombre||'').localeCompare(b.nombre||'', 'es');
   });
