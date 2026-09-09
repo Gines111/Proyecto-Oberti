@@ -3,6 +3,11 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/fireba
 import {
   getFirestore, collection, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import {
+  getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut
+} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+
+var ADMIN_EMAIL = 'ginespo2004@gmail.com';
 
 var DAYS = [
   {code:'L',label:'Lunes'},{code:'M',label:'Martes'},{code:'X',label:'Miércoles'},
@@ -34,11 +39,60 @@ var state = {
   calYear:new Date().getFullYear(),
   calMonth:new Date().getMonth(),
   selectedDate:todayISO(),
-  editingChildId:null
+  editingChildId:null,
+  isAdmin:false
 };
 
-var db = null;
+var db = null, auth = null;
 var childrenCol, eventsCol, attendanceCol;
+
+// ================= ADMIN LOGIN =================
+var adminOpenBtn = document.getElementById('adminOpenBtn');
+var adminLoginForm = document.getElementById('adminLoginForm');
+var adminCancelBtn = document.getElementById('adminCancelBtn');
+var adminActive = document.getElementById('adminActive');
+var adminLogoutBtn = document.getElementById('adminLogoutBtn');
+var adminLoginError = document.getElementById('adminLoginError');
+
+adminOpenBtn.addEventListener('click', function(){
+  adminOpenBtn.hidden = true;
+  adminLoginForm.hidden = false;
+  document.getElementById('adminPassword').focus();
+});
+adminCancelBtn.addEventListener('click', function(){
+  adminLoginForm.hidden = true;
+  adminOpenBtn.hidden = false;
+  adminLoginError.textContent = '';
+  adminLoginForm.reset();
+});
+adminLoginForm.addEventListener('submit', function(e){
+  e.preventDefault();
+  if(!auth) return;
+  var pass = document.getElementById('adminPassword').value;
+  adminLoginError.textContent = '';
+  signInWithEmailAndPassword(auth, ADMIN_EMAIL, pass).then(function(){
+    adminLoginForm.reset();
+  }).catch(function(){
+    adminLoginError.textContent = 'Contraseña incorrecta.';
+  });
+});
+adminLogoutBtn.addEventListener('click', function(){
+  if(auth) signOut(auth);
+});
+
+function updateAuthUI(){
+  document.getElementById('childFormCard').hidden = !state.isAdmin;
+  document.getElementById('eventForm').hidden = !state.isAdmin;
+  if(state.isAdmin){
+    adminOpenBtn.hidden = true;
+    adminLoginForm.hidden = true;
+    adminActive.hidden = false;
+  } else {
+    adminActive.hidden = true;
+    adminOpenBtn.hidden = false;
+    adminLoginForm.hidden = true;
+  }
+}
 
 // ---------- tabs ----------
 document.querySelectorAll('.tab-btn').forEach(function(btn){
@@ -105,12 +159,12 @@ function renderCalendar(){
         + '<div class="event-body"><div class="event-title">'+escapeHtml(ev.titulo)+'</div>'
         + (ev.descripcion ? '<div class="event-desc">'+escapeHtml(ev.descripcion)+'</div>' : '') + '</div>'
         + '<span class="chip event-type">'+TIPO_LABEL[ev.tipo]+'</span>'
-        + '<button class="event-del" data-id="'+ev.id+'" title="Eliminar" aria-label="Eliminar fecha">×</button>'
+        + (state.isAdmin ? '<button class="event-del" data-id="'+ev.id+'" title="Eliminar" aria-label="Eliminar fecha">×</button>' : '')
         + '</div>';
     }).join('') + '</div>';
     listEl.querySelectorAll('.event-del').forEach(function(btn){
       btn.addEventListener('click', function(){
-        if(db) deleteDoc(doc(eventsCol, btn.dataset.id));
+        if(db && state.isAdmin) deleteDoc(doc(eventsCol, btn.dataset.id));
       });
     });
   }
@@ -127,7 +181,7 @@ document.getElementById('calNext').addEventListener('click', function(){
 
 document.getElementById('eventForm').addEventListener('submit', function(e){
   e.preventDefault();
-  if(!db) return;
+  if(!db || !state.isAdmin) return;
   var fecha = document.getElementById('evFecha').value;
   var tipo = document.getElementById('evTipo').value;
   var titulo = document.getElementById('evTitulo').value.trim();
@@ -153,7 +207,7 @@ document.getElementById('chCancelBtn').addEventListener('click', function(){
 
 document.getElementById('childForm').addEventListener('submit', function(e){
   e.preventDefault();
-  if(!db) return;
+  if(!db || !state.isAdmin) return;
   var nombre = document.getElementById('chNombre').value.trim();
   if(!nombre) return;
   var notas = document.getElementById('chNotas').value.trim();
@@ -197,10 +251,11 @@ function renderChildList(){
     return '<div class="child-row'+(c.activo===false?' inactive':'')+'">'
       + '<div class="child-name">'+escapeHtml(c.nombre)+(c.notas?'<span class="sub">'+escapeHtml(c.notas)+'</span>':'')+'</div>'
       + '<div class="child-days">'+days+'</div>'
-      + '<div class="child-actions">'
-      + '<button class="btn ghost small" data-edit="'+c.id+'">Editar</button>'
-      + '<button class="btn ghost small" data-toggle="'+c.id+'">'+(c.activo===false?'Reactivar':'Dar de baja')+'</button>'
-      + '</div></div>';
+      + (state.isAdmin ? '<div class="child-actions">'
+        + '<button class="btn ghost small" data-edit="'+c.id+'">Editar</button>'
+        + '<button class="btn ghost small" data-toggle="'+c.id+'">'+(c.activo===false?'Reactivar':'Dar de baja')+'</button>'
+        + '</div>' : '')
+      + '</div>';
   }).join('');
 
   el.querySelectorAll('[data-edit]').forEach(function(btn){
@@ -211,7 +266,7 @@ function renderChildList(){
   });
   el.querySelectorAll('[data-toggle]').forEach(function(btn){
     btn.addEventListener('click', function(){
-      if(!db) return;
+      if(!db || !state.isAdmin) return;
       var c = state.children.find(function(x){return x.id===btn.dataset.toggle;});
       if(c) updateDoc(doc(childrenCol, c.id), {activo: c.activo===false});
     });
@@ -229,7 +284,7 @@ function attendanceFor(childId, fecha){
 }
 
 function setAttendance(childId, fecha, estado){
-  if(!db) return;
+  if(!db || !state.isAdmin) return;
   var current = attendanceFor(childId, fecha);
   var next = current && current.estado===estado ? null : estado;
   var id = childId+'__'+fecha;
@@ -272,17 +327,21 @@ function renderAsistencia(){
     if(aOn !== bOn) return aOn ? -1 : 1;
     return (a.nombre||'').localeCompare(b.nombre||'', 'es');
   });
+  var ESTADO_LABEL = {asistio:'Asistió', falta:'Faltó', justificada:'Justificada'};
   listEl.innerHTML = sorted.map(function(c){
     var rec = attendanceFor(c.id, state.selectedDate);
     var estado = rec ? rec.estado : null;
     var assigned = (c.dias||[]).indexOf(dCode)!==-1;
+    var statusHtml = state.isAdmin
+      ? '<div class="status-btns">'
+        + '<button class="status-btn asistio'+(estado==='asistio'?' on':'')+'" data-child="'+c.id+'" data-estado="asistio">Asistió</button>'
+        + '<button class="status-btn falta'+(estado==='falta'?' on':'')+'" data-child="'+c.id+'" data-estado="falta">Faltó</button>'
+        + '<button class="status-btn justificada'+(estado==='justificada'?' on':'')+'" data-child="'+c.id+'" data-estado="justificada">Justificada</button>'
+        + '</div>'
+      : '<span class="status-chip'+(estado?' '+estado:'')+'">'+(estado?ESTADO_LABEL[estado]:'Sin registrar')+'</span>';
     return '<div class="child-row">'
       + '<div class="child-name">'+escapeHtml(c.nombre)+(assigned?'':'<span class="sub">no asignado hoy</span>')+'</div>'
-      + '<div class="status-btns">'
-      + '<button class="status-btn asistio'+(estado==='asistio'?' on':'')+'" data-child="'+c.id+'" data-estado="asistio">Asistió</button>'
-      + '<button class="status-btn falta'+(estado==='falta'?' on':'')+'" data-child="'+c.id+'" data-estado="falta">Faltó</button>'
-      + '<button class="status-btn justificada'+(estado==='justificada'?' on':'')+'" data-child="'+c.id+'" data-estado="justificada">Justificada</button>'
-      + '</div></div>';
+      + statusHtml + '</div>';
   }).join('');
 
   listEl.querySelectorAll('.status-btn').forEach(function(btn){
@@ -362,11 +421,18 @@ if(!firebaseConfig.apiKey || firebaseConfig.apiKey === 'TU_API_KEY'){
   try{
     var app = initializeApp(firebaseConfig);
     db = getFirestore(app);
+    auth = getAuth(app);
     childrenCol = collection(db, 'children');
     eventsCol = collection(db, 'events');
     attendanceCol = collection(db, 'attendance');
 
     setStatus('Conectando…');
+
+    onAuthStateChanged(auth, function(user){
+      state.isAdmin = !!user;
+      updateAuthUI();
+      renderAll();
+    });
 
     onSnapshot(childrenCol, function(snap){
       state.children = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });

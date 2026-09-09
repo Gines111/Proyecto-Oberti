@@ -6,7 +6,7 @@
 <title>Proyecto Oberti — Utrera</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Karla:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="css/styles.css">
+<link rel="stylesheet" href="css/styles.css?v=2">
 </head>
 <body>
 
@@ -23,6 +23,19 @@
       <button class="tab-btn" data-tab="asistencia">Asistencia</button>
       <button class="tab-btn" data-tab="balance">Balance</button>
     </nav>
+    <div class="sidebar-auth" id="sidebarAuth">
+      <button class="btn ghost small" id="adminOpenBtn">Acceso administrador</button>
+      <form id="adminLoginForm" class="admin-login-form" hidden>
+        <input type="password" id="adminPassword" placeholder="Contraseña" autocomplete="current-password" required>
+        <button class="btn small" type="submit">Entrar</button>
+        <button class="btn ghost small" type="button" id="adminCancelBtn">Cancelar</button>
+        <div class="admin-login-error" id="adminLoginError"></div>
+      </form>
+      <div class="admin-active" id="adminActive" hidden>
+        <span class="chip on">Administrador</span>
+        <button class="btn ghost small" id="adminLogoutBtn">Cerrar sesión</button>
+      </div>
+    </div>
     <div class="sidebar-status" id="connStatus"><span class="dot"></span><span>Conectando…</span></div>
   </aside>
 
@@ -46,7 +59,7 @@
         <div class="card">
           <h3>Próximas fechas</h3>
           <div id="eventList"></div>
-          <form id="eventForm">
+          <form id="eventForm" hidden>
             <div class="form-row">
               <div class="field">
                 <label for="evFecha">Fecha</label>
@@ -80,7 +93,7 @@
       <div class="panel-head">
         <div><h2>Niños</h2><div class="panel-sub">Ficha de cada niño o niña y los días de la semana en los que suele venir.</div></div>
       </div>
-      <div class="card">
+      <div class="card" id="childFormCard" hidden>
         <h3 id="childFormTitle">Añadir niño o niña</h3>
         <form id="childForm">
           <div class="form-row">
@@ -136,6 +149,6 @@
   </main>
 </div>
 
-<script type="module" src="js/app.js"></script>
+<script type="module" src="js/app.js?v=2"></script>
 </body>
 </html>
