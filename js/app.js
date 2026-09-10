@@ -43,7 +43,8 @@ var state = {
   editingEventId:null,
   isAdmin:false,
   childSearch:'',
-  eventFilter:'todos'
+  eventFilter:'todos',
+  turnoFilter:'todos'
 };
 
 var db = null, auth = null;
@@ -227,10 +228,10 @@ function renderCalendar(){
   }
 }
 
-document.querySelectorAll('.ev-filter-btn').forEach(function(btn){
+document.querySelectorAll('#evFilter .ev-filter-btn').forEach(function(btn){
   btn.addEventListener('click', function(){
     state.eventFilter = btn.dataset.filtro;
-    document.querySelectorAll('.ev-filter-btn').forEach(function(b){ b.classList.toggle('active', b===btn); });
+    document.querySelectorAll('#evFilter .ev-filter-btn').forEach(function(b){ b.classList.toggle('active', b===btn); });
     renderCalendar();
   });
 });
@@ -501,6 +502,21 @@ document.getElementById('asisFecha').addEventListener('change', function(e){
   renderAsistencia();
 });
 
+document.querySelectorAll('#turnoFilter .ev-filter-btn').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    state.turnoFilter = btn.dataset.turno;
+    document.querySelectorAll('#turnoFilter .ev-filter-btn').forEach(function(b){ b.classList.toggle('active', b===btn); });
+    renderAsistencia();
+  });
+});
+
+function matchesTurno(child){
+  if(state.turnoFilter==='todos') return true;
+  if(child.turno===state.turnoFilter) return true;
+  if((state.turnoFilter==='Turno 1' || state.turnoFilter==='Turno 2') && child.turno==='Ambos turnos') return true;
+  return false;
+}
+
 function attendanceFor(childId, fecha){
   return state.attendance.find(function(a){ return a.childId===childId && a.fecha===fecha; });
 }
@@ -525,11 +541,13 @@ function renderAsistencia(){
   document.getElementById('asisListTitle').textContent = dLabel.charAt(0).toUpperCase()+dLabel.slice(1);
 
   var active = state.children.filter(function(c){ return c.activo !== false; });
-  var forDate = state.attendance.filter(function(a){ return a.fecha===state.selectedDate; });
+  var filtered = active.filter(matchesTurno);
+  var filteredIds = filtered.map(function(c){ return c.id; });
+  var forDate = state.attendance.filter(function(a){ return a.fecha===state.selectedDate && filteredIds.indexOf(a.childId)!==-1; });
 
   var counts = {asistio:0, tarde:0, falta:0, justificada:0};
   forDate.forEach(function(a){ if(counts[a.estado]!==undefined) counts[a.estado]++; });
-  var sinRegistrar = active.length - forDate.length;
+  var sinRegistrar = filtered.length - forDate.length;
 
   document.getElementById('asisSummary').innerHTML = [
     ['Asistieron', counts.asistio, 'success'],
@@ -546,7 +564,11 @@ function renderAsistencia(){
     listEl.innerHTML = '<div class="empty">No hay niños activos todavía. Añádelos en la pestaña Niños.</div>';
     return;
   }
-  var sorted = active.slice().sort(function(a,b){
+  if(!filtered.length){
+    listEl.innerHTML = '<div class="empty">Ningún niño activo tiene el turno "'+escapeHtml(state.turnoFilter)+'".</div>';
+    return;
+  }
+  var sorted = filtered.slice().sort(function(a,b){
     var aOn = (a.dias||[]).indexOf(dCode)!==-1, bOn = (b.dias||[]).indexOf(dCode)!==-1;
     if(aOn !== bOn) return aOn ? -1 : 1;
     return (a.nombre||'').localeCompare(b.nombre||'', 'es');
