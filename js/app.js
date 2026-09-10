@@ -48,6 +48,26 @@ var state = {
 var db = null, auth = null;
 var childrenCol, eventsCol, attendanceCol;
 
+// ---------- mobile menu ----------
+var menuBtn = document.getElementById('menuBtn');
+var sidebarEl = document.getElementById('sidebar');
+function closeMobileMenu(){
+  sidebarEl.classList.remove('open');
+  menuBtn.classList.remove('open');
+  menuBtn.setAttribute('aria-expanded', 'false');
+}
+menuBtn.addEventListener('click', function(){
+  var open = sidebarEl.classList.toggle('open');
+  menuBtn.classList.toggle('open', open);
+  menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+});
+document.addEventListener('click', function(e){
+  if(sidebarEl.classList.contains('open') && !sidebarEl.contains(e.target) && !menuBtn.contains(e.target)) closeMobileMenu();
+});
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape') closeMobileMenu();
+});
+
 // ================= ADMIN LOGIN =================
 var adminOpenBtn = document.getElementById('adminOpenBtn');
 var adminLoginForm = document.getElementById('adminLoginForm');
@@ -74,12 +94,14 @@ adminLoginForm.addEventListener('submit', function(e){
   adminLoginError.textContent = '';
   signInWithEmailAndPassword(auth, ADMIN_EMAIL, pass).then(function(){
     adminLoginForm.reset();
+    closeMobileMenu();
   }).catch(function(){
     adminLoginError.textContent = 'Contraseña incorrecta.';
   });
 });
 adminLogoutBtn.addEventListener('click', function(){
   if(auth) signOut(auth);
+  closeMobileMenu();
 });
 
 function updateAuthUI(){
@@ -101,6 +123,7 @@ document.querySelectorAll('.tab-btn').forEach(function(btn){
   btn.addEventListener('click', function(){
     document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.toggle('active', b===btn);});
     document.querySelectorAll('.panel').forEach(function(p){p.classList.toggle('active', p.id==='panel-'+btn.dataset.tab);});
+    closeMobileMenu();
   });
 });
 
