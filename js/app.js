@@ -163,7 +163,8 @@ function renderCalendar(){
     var iso = cellDate.getFullYear()+'-'+String(cellDate.getMonth()+1).padStart(2,'0')+'-'+String(cellDate.getDate()).padStart(2,'0');
     var out = cellDate.getMonth() !== state.calMonth;
     var evs = eventsByDate[iso] || [];
-    var cls = 'cal-cell'+(out?' out':'')+(iso===today?' today':'');
+    var dow = cellDate.getDay();
+    var cls = 'cal-cell'+(out?' out':'')+(iso===today?' today':'')+((dow===0||dow===6)?' weekend':'');
     if(state.isAdmin) cls += ' clickable';
     var tooltip = '';
     if(evs.length===1){
@@ -189,8 +190,9 @@ function renderCalendar(){
   } else {
     listEl.innerHTML = '<div class="event-list">' + upcoming.map(function(ev){
       var d = new Date(ev.fecha+'T00:00:00');
+      var isToday = ev.fecha === today;
       return '<div class="event-item'+(state.isAdmin?' clickable':'')+'" data-id="'+ev.id+'">'
-        + '<div class="event-date">'+d.getDate()+'<small>'+MESES_ABR[d.getMonth()]+'</small></div>'
+        + '<div class="event-date'+(isToday?' is-today':'')+'">'+(isToday?'Hoy':d.getDate())+(isToday?'':'<small>'+MESES_ABR[d.getMonth()]+'</small>')+'</div>'
         + '<div class="event-body"><div class="event-title">'+escapeHtml(ev.titulo)+'</div>'
         + (ev.descripcion ? '<div class="event-desc">'+escapeHtml(ev.descripcion)+'</div>' : '') + '</div>'
         + '<span class="chip event-type tipo-'+ev.tipo+'">'+TIPO_LABEL[ev.tipo]+'</span>'
