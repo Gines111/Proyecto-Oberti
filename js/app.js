@@ -108,6 +108,8 @@ adminLogoutBtn.addEventListener('click', function(){
 function updateAuthUI(){
   document.getElementById('childFormCard').hidden = !state.isAdmin;
   document.getElementById('eventForm').hidden = !state.isAdmin;
+  document.getElementById('importToggleBtn').hidden = !state.isAdmin;
+  if(!state.isAdmin) document.getElementById('importCard').hidden = true;
   if(state.isAdmin){
     adminOpenBtn.hidden = true;
     adminLoginForm.hidden = true;
@@ -416,6 +418,82 @@ function renderChildList(){
     });
   });
 }
+
+// ---------- importar varios por texto ----------
+document.getElementById('importToggleBtn').addEventListener('click', function(){
+  var card = document.getElementById('importCard');
+  card.hidden = !card.hidden;
+  if(!card.hidden) document.getElementById('importText').focus();
+});
+
+function parseImportText(text){
+  return text.split('\n').map(function(line){ return line.trim(); })
+    .filter(function(line){ return line.indexOf('/') !== -1; })
+    .map(function(line){
+      var parts = line.split('/').map(function(p){ return p.trim(); });
+      return {nombre: parts[0]||'', curso: parts[1]||'', colegio: parts[2]||'', turno: parts[3]||''};
+    })
+    .filter(function(row){ return row.nombre; });
+}
+
+document.getElementById('importParseBtn').addEventListener('click', function(){
+  var rows = parseImportText(document.getElementById('importText').value);
+  var previewEl = document.getElementById('importPreview');
+  if(!rows.length){
+    previewEl.hidden = false;
+    previewEl.innerHTML = '<div class="empty">No se ha detectado ningún niño. Revisa que cada línea tenga el formato Nombre / Curso / Colegio / Turno.</div>';
+    return;
+  }
+  var existingNames = state.children.map(function(c){ return (c.nombre||'').trim().toLowerCase(); });
+  previewEl.hidden = false;
+  previewEl.innerHTML = '<p class="panel-sub" style="margin:12px 0 8px;">Revisa y corrige si algo no se ha detectado bien antes de importar:</p>'
+    + '<div class="import-rows">' + rows.map(function(r, i){
+      var dup = existingNames.indexOf(r.nombre.trim().toLowerCase()) !== -1;
+      return '<div class="import-row">'
+        + '<label class="import-check"><input type="checkbox" data-i="'+i+'" '+(dup?'':'checked')+'></label>'
+        + '<input type="text" data-i="'+i+'" data-f="nombre" value="'+escapeHtml(r.nombre)+'" placeholder="Nombre">'
+        + '<input type="text" data-i="'+i+'" data-f="curso" value="'+escapeHtml(r.curso)+'" placeholder="Curso">'
+        + '<input type="text" data-i="'+i+'" data-f="colegio" value="'+escapeHtml(r.colegio)+'" placeholder="Colegio">'
+        + '<input type="text" data-i="'+i+'" data-f="turno" value="'+escapeHtml(r.turno)+'" placeholder="Turno">'
+        + (dup ? '<span class="chip">ya existe</span>' : '<span></span>')
+        + '</div>';
+    }).join('') + '</div>'
+    + '<div style="display:flex;gap:8px;margin-top:12px;">'
+    + '<button class="btn" type="button" id="importConfirmBtn">Importar</button>'
+    + '<button class="btn ghost" type="button" id="importCancelBtn">Cancelar</button>'
+    + '</div>';
+
+  previewEl.querySelectorAll('input[type=text]').forEach(function(inp){
+    inp.addEventListener('input', function(){
+      rows[+inp.dataset.i][inp.dataset.f] = inp.value;
+    });
+  });
+  document.getElementById('importCancelBtn').addEventListener('click', function(){
+    previewEl.hidden = true;
+    previewEl.innerHTML = '';
+    document.getElementById('importText').value = '';
+  });
+  document.getElementById('importConfirmBtn').addEventListener('click', function(){
+    if(!db || !state.isAdmin) return;
+    var checks = previewEl.querySelectorAll('input[type=checkbox]');
+    var toImport = [];
+    checks.forEach(function(chk){
+      if(chk.checked) toImport.push(rows[+chk.dataset.i]);
+    });
+    if(!toImport.length) return;
+    toImport.forEach(function(r){
+      if(!r.nombre.trim()) return;
+      addDoc(childrenCol, {
+        nombre:r.nombre.trim(), curso:r.curso.trim(), colegio:r.colegio.trim(), turno:r.turno.trim(),
+        dias:[], notas:'', extraescolares:'', activo:true, creado:Date.now()
+      });
+    });
+    previewEl.hidden = true;
+    previewEl.innerHTML = '';
+    document.getElementById('importText').value = '';
+    document.getElementById('importCard').hidden = true;
+  });
+});
 
 // ================= ASISTENCIA =================
 document.getElementById('asisFecha').addEventListener('change', function(e){

@@ -7,7 +7,7 @@
 <link rel="icon" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Karla:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="css/styles.css?v=9">
+<link rel="stylesheet" href="css/styles.css?v=10">
 </head>
 <body>
 
@@ -124,8 +124,20 @@
       <div class="panel-head">
         <div><h2>Niños</h2><div class="panel-sub">Ficha de cada niño o niña y los días de la semana en los que suele venir.</div></div>
       </div>
+      <div class="card" id="importCard" hidden>
+        <h3>Importar varios por texto</h3>
+        <p class="panel-sub" style="margin-bottom:10px;">Pega una lista con un niño por línea, formato <code>Nombre / Curso / Colegio / Turno</code>. Las líneas sin "/" (como cabeceras de familia) se ignoran automáticamente.</p>
+        <div class="field">
+          <textarea id="importText" rows="6" placeholder="Zahra / 3º ESO / Coca de la Piñera / Turno 2&#10;Amal / 4º ESO / Ruiz Gijón / Turno 2"></textarea>
+        </div>
+        <button class="btn ghost" type="button" id="importParseBtn" style="margin-top:10px;">Analizar texto</button>
+        <div id="importPreview" hidden></div>
+      </div>
       <div class="card" id="childFormCard" hidden>
-        <h3 id="childFormTitle">Añadir niño o niña</h3>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+          <h3 id="childFormTitle" style="margin:0;">Añadir niño o niña</h3>
+          <button class="btn ghost small" type="button" id="importToggleBtn">Importar varios por texto</button>
+        </div>
         <form id="childForm">
           <div class="form-row">
             <div class="field" style="flex:2 1 220px;">
@@ -207,6 +219,6 @@
   </main>
 </div>
 
-<script type="module" src="js/app.js?v=8"></script>
+<script type="module" src="js/app.js?v=9"></script>
 </body>
 </html>

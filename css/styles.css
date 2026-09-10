@@ -252,6 +252,19 @@ tr:last-child td{border-bottom:none;}
   border:1px dashed var(--border);border-radius:var(--radius);font-size:13.5px;
 }
 
+.import-rows{display:flex;flex-direction:column;gap:8px;max-height:360px;overflow-y:auto;padding-right:4px;}
+.import-row{
+  display:flex;flex-wrap:wrap;gap:6px;align-items:center;
+  border-bottom:1px solid var(--border);padding-bottom:8px;
+}
+.import-row input[type=text]{
+  background:var(--ground);border:1px solid var(--border);border-radius:6px;
+  padding:6px 8px;color:var(--ink);font-size:12.5px;flex:1 1 110px;min-width:0;
+}
+.import-row input[type=text]:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+.import-check{display:flex;flex:none;}
+.import-check input{width:16px;height:16px;accent-color:var(--accent);}
+
 .child-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;}
 .child-row:last-child{border-bottom:none;}
 .child-name{font-weight:700;flex:1 1 auto;min-width:120px;}
