@@ -42,7 +42,8 @@ var state = {
   editingChildId:null,
   editingEventId:null,
   isAdmin:false,
-  childSearch:''
+  childSearch:'',
+  eventFilter:'todos'
 };
 
 var db = null, auth = null;
@@ -184,9 +185,13 @@ function renderCalendar(){
   grid.innerHTML = html;
 
   var listEl = document.getElementById('eventList');
-  var upcoming = state.events.filter(function(e){ return e.fecha >= today; }).sort(function(a,b){ return a.fecha.localeCompare(b.fecha); }).slice(0,8);
+  var upcoming = state.events.filter(function(e){
+    return e.fecha >= today && (state.eventFilter==='todos' || e.tipo===state.eventFilter);
+  }).sort(function(a,b){ return a.fecha.localeCompare(b.fecha); }).slice(0,8);
   if(!upcoming.length){
-    listEl.innerHTML = '<div class="empty">No hay próximas fechas. Añade la primera abajo.</div>';
+    listEl.innerHTML = state.eventFilter==='todos'
+      ? '<div class="empty">No hay próximas fechas. Añade la primera abajo.</div>'
+      : '<div class="empty">No hay próximas fechas de tipo "'+TIPO_LABEL[state.eventFilter]+'".</div>';
   } else {
     listEl.innerHTML = '<div class="event-list">' + upcoming.map(function(ev){
       var d = new Date(ev.fecha+'T00:00:00');
@@ -219,6 +224,14 @@ function renderCalendar(){
     });
   }
 }
+
+document.querySelectorAll('.ev-filter-btn').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    state.eventFilter = btn.dataset.filtro;
+    document.querySelectorAll('.ev-filter-btn').forEach(function(b){ b.classList.toggle('active', b===btn); });
+    renderCalendar();
+  });
+});
 
 document.getElementById('calPrev').addEventListener('click', function(){
   state.calMonth--; if(state.calMonth<0){state.calMonth=11; state.calYear--;}

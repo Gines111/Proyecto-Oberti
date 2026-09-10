@@ -344,6 +344,19 @@ tr:last-child td{border-bottom:none;}
 .cal-swatch.tipo-festivo{background:var(--surface-2);color:var(--ink-dim);}
 .cal-swatch.tipo-festivo .dot{background:var(--ink-dim);}
 
+.ev-filter{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
+.ev-filter-btn{
+  border:1px solid var(--border);background:var(--ground);color:var(--ink-dim);
+  border-radius:99px;padding:5px 12px;font-size:11.5px;font-weight:700;cursor:pointer;
+  transition:background .12s,color .12s,border-color .12s;
+}
+.ev-filter-btn:hover{border-color:var(--ink-dim);}
+.ev-filter-btn.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
+.ev-filter-btn.tipo-actividad.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
+.ev-filter-btn.tipo-excursion.active{background:var(--warning);color:var(--accent-ink);border-color:var(--warning);}
+.ev-filter-btn.tipo-reunion.active{background:var(--brand-coral);color:var(--accent-ink);border-color:var(--brand-coral);}
+.ev-filter-btn.tipo-festivo.active{background:var(--ink-dim);color:var(--ground);border-color:var(--ink-dim);}
+
 .cal-cell[data-tooltip]:hover::after{
   content:attr(data-tooltip);
   position:absolute;

@@ -7,7 +7,7 @@
 <link rel="icon" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Karla:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="css/styles.css?v=7">
+<link rel="stylesheet" href="css/styles.css?v=8">
 </head>
 <body>
 
@@ -78,6 +78,13 @@
         </div>
         <div class="card">
           <h3>Próximas fechas</h3>
+          <div class="ev-filter" id="evFilter">
+            <button class="ev-filter-btn active" data-filtro="todos">Todos</button>
+            <button class="ev-filter-btn tipo-actividad" data-filtro="actividad">Actividad</button>
+            <button class="ev-filter-btn tipo-excursion" data-filtro="excursion">Excursión</button>
+            <button class="ev-filter-btn tipo-reunion" data-filtro="reunion">Reunión</button>
+            <button class="ev-filter-btn tipo-festivo" data-filtro="festivo">Cierre</button>
+          </div>
           <div id="eventList"></div>
           <form id="eventForm" hidden>
             <h3 id="eventFormTitle" style="margin:0;">Añadir fecha</h3>
@@ -176,6 +183,6 @@
   </main>
 </div>
 
-<script type="module" src="js/app.js?v=6"></script>
+<script type="module" src="js/app.js?v=7"></script>
 </body>
 </html>
