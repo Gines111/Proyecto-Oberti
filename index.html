@@ -7,7 +7,7 @@
 <link rel="icon" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Karla:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="css/styles.css?v=8">
+<link rel="stylesheet" href="css/styles.css?v=9">
 </head>
 <body>
 
@@ -133,9 +133,33 @@
               <input type="text" id="chNombre" placeholder="Nombre y apellidos" required>
             </div>
           </div>
+          <div class="form-row">
+            <div class="field">
+              <label for="chCurso">Curso</label>
+              <input type="text" id="chCurso" placeholder="Ej. 4º ESO">
+            </div>
+            <div class="field">
+              <label for="chColegio">Colegio</label>
+              <input type="text" id="chColegio" placeholder="Ej. Ruiz Gijón">
+            </div>
+            <div class="field">
+              <label for="chTurno">Turno</label>
+              <select id="chTurno">
+                <option value="">Sin especificar</option>
+                <option value="Turno 1">Turno 1</option>
+                <option value="Turno 2">Turno 2</option>
+                <option value="Ambos turnos">Ambos turnos</option>
+                <option value="Sin turno">Sin turno</option>
+              </select>
+            </div>
+          </div>
           <div class="field">
             <label>Días habituales</label>
             <div class="day-checks" id="chDays"></div>
+          </div>
+          <div class="field">
+            <label for="chExtraescolares">Actividades extraescolares (opcional)</label>
+            <input type="text" id="chExtraescolares" placeholder="Ej. Fútbol los martes">
           </div>
           <div class="field">
             <label for="chNotas">Notas (opcional)</label>
@@ -183,6 +207,6 @@
   </main>
 </div>
 
-<script type="module" src="js/app.js?v=7"></script>
+<script type="module" src="js/app.js?v=8"></script>
 </body>
 </html>

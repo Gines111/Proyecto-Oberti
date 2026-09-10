@@ -252,7 +252,7 @@ tr:last-child td{border-bottom:none;}
   border:1px dashed var(--border);border-radius:var(--radius);font-size:13.5px;
 }
 
-.child-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border);}
+.child-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;}
 .child-row:last-child{border-bottom:none;}
 .child-name{font-weight:700;flex:1 1 auto;min-width:120px;}
 .child-name .sub{display:block;font-weight:400;font-size:12px;color:var(--ink-dim);margin-top:1px;}
@@ -261,7 +261,7 @@ tr:last-child td{border-bottom:none;}
 .child-actions{display:flex;gap:6px;flex:none;}
 .child-row.inactive{opacity:.5;}
 
-.status-btns{display:flex;gap:6px;flex:none;}
+.status-btns{display:flex;gap:6px;flex-wrap:wrap;}
 .status-btn{
   border:1px solid var(--border);background:var(--ground);color:var(--ink-dim);
   border-radius:7px;padding:6px 11px;font-size:12.5px;font-weight:700;cursor:pointer;
@@ -269,11 +269,13 @@ tr:last-child td{border-bottom:none;}
 }
 .status-btn:hover{border-color:var(--ink-dim);}
 .status-btn.asistio.on{background:var(--success-bg);color:var(--success);border-color:var(--success);}
+.status-btn.tarde.on{background:var(--brand-coral-bg);color:var(--brand-coral);border-color:var(--brand-coral);}
 .status-btn.falta.on{background:var(--danger-bg);color:var(--danger);border-color:var(--danger);}
 .status-btn.justificada.on{background:var(--warning-bg);color:var(--warning);border-color:var(--warning);}
 
 .status-chip{font-size:12.5px;font-weight:700;padding:6px 11px;border-radius:7px;border:1px solid var(--border);color:var(--ink-dim);}
 .status-chip.asistio{background:var(--success-bg);color:var(--success);border-color:var(--success);}
+.status-chip.tarde{background:var(--brand-coral-bg);color:var(--brand-coral);border-color:var(--brand-coral);}
 .status-chip.falta{background:var(--danger-bg);color:var(--danger);border-color:var(--danger);}
 .status-chip.justificada{background:var(--warning-bg);color:var(--warning);border-color:var(--warning);}
 

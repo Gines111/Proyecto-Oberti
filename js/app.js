@@ -330,12 +330,16 @@ document.getElementById('childForm').addEventListener('submit', function(e){
   var nombre = document.getElementById('chNombre').value.trim();
   if(!nombre) return;
   var notas = document.getElementById('chNotas').value.trim();
+  var curso = document.getElementById('chCurso').value.trim();
+  var colegio = document.getElementById('chColegio').value.trim();
+  var turno = document.getElementById('chTurno').value;
+  var extraescolares = document.getElementById('chExtraescolares').value.trim();
   var dias = Array.prototype.slice.call(chDaysEl.querySelectorAll('input:checked')).map(function(i){return i.value;});
 
   if(state.editingChildId){
-    updateDoc(doc(childrenCol, state.editingChildId), {nombre:nombre, notas:notas, dias:dias});
+    updateDoc(doc(childrenCol, state.editingChildId), {nombre:nombre, notas:notas, dias:dias, curso:curso, colegio:colegio, turno:turno, extraescolares:extraescolares});
   } else {
-    addDoc(childrenCol, {nombre:nombre, notas:notas, dias:dias, activo:true, creado:Date.now()});
+    addDoc(childrenCol, {nombre:nombre, notas:notas, dias:dias, curso:curso, colegio:colegio, turno:turno, extraescolares:extraescolares, activo:true, creado:Date.now()});
   }
   state.editingChildId = null;
   e.target.reset();
@@ -346,6 +350,10 @@ function startEditChild(child){
   state.editingChildId = child.id;
   document.getElementById('chNombre').value = child.nombre || '';
   document.getElementById('chNotas').value = child.notas || '';
+  document.getElementById('chCurso').value = child.curso || '';
+  document.getElementById('chColegio').value = child.colegio || '';
+  document.getElementById('chTurno').value = child.turno || '';
+  document.getElementById('chExtraescolares').value = child.extraescolares || '';
   chDaysEl.querySelectorAll('input').forEach(function(i){
     i.checked = (child.dias||[]).indexOf(i.value) !== -1;
   });
@@ -375,8 +383,13 @@ function renderChildList(){
     var days = (c.dias||[]).length
       ? DAYS.filter(function(d){ return (c.dias||[]).indexOf(d.code)!==-1; }).map(function(d){ return '<span class="chip on">'+d.code+'</span>'; }).join('')
       : '<span class="chip">sin días fijos</span>';
+    var meta = [c.curso, c.colegio, c.turno].filter(Boolean).join(' · ');
     return '<div class="child-row'+(c.activo===false?' inactive':'')+'">'
-      + '<div class="child-name">'+escapeHtml(c.nombre)+(c.notas?'<span class="sub">'+escapeHtml(c.notas)+'</span>':'')+'</div>'
+      + '<div class="child-name">'+escapeHtml(c.nombre)
+        + (meta?'<span class="sub">'+escapeHtml(meta)+'</span>':'')
+        + (c.extraescolares?'<span class="sub">Extraescolares: '+escapeHtml(c.extraescolares)+'</span>':'')
+        + (c.notas?'<span class="sub">'+escapeHtml(c.notas)+'</span>':'')
+        + '</div>'
       + '<div class="child-days">'+days+'</div>'
       + (state.isAdmin ? '<div class="child-actions">'
         + '<button class="btn ghost small" data-edit="'+c.id+'">Editar</button>'
@@ -415,14 +428,15 @@ function attendanceFor(childId, fecha){
 }
 
 function setAttendance(childId, fecha, estado){
-  if(!db || !state.isAdmin) return;
+  if(!db) return;
+  if(estado==='justificada' && !state.isAdmin) return;
   var current = attendanceFor(childId, fecha);
   var next = current && current.estado===estado ? null : estado;
   var id = childId+'__'+fecha;
   if(next===null){
-    deleteDoc(doc(attendanceCol, id));
+    deleteDoc(doc(attendanceCol, id)).catch(function(){});
   } else {
-    setDoc(doc(attendanceCol, id), {childId:childId, fecha:fecha, estado:next, anotado:Date.now()});
+    setDoc(doc(attendanceCol, id), {childId:childId, fecha:fecha, estado:next, anotado:Date.now()}).catch(function(){});
   }
 }
 
@@ -435,12 +449,13 @@ function renderAsistencia(){
   var active = state.children.filter(function(c){ return c.activo !== false; });
   var forDate = state.attendance.filter(function(a){ return a.fecha===state.selectedDate; });
 
-  var counts = {asistio:0, falta:0, justificada:0};
+  var counts = {asistio:0, tarde:0, falta:0, justificada:0};
   forDate.forEach(function(a){ if(counts[a.estado]!==undefined) counts[a.estado]++; });
   var sinRegistrar = active.length - forDate.length;
 
   document.getElementById('asisSummary').innerHTML = [
     ['Asistieron', counts.asistio, 'success'],
+    ['Tarde', counts.tarde, 'brand-coral'],
     ['Faltaron', counts.falta, 'danger'],
     ['Justificadas', counts.justificada, 'warning'],
     ['Sin registrar', Math.max(sinRegistrar,0), '']
@@ -458,18 +473,18 @@ function renderAsistencia(){
     if(aOn !== bOn) return aOn ? -1 : 1;
     return (a.nombre||'').localeCompare(b.nombre||'', 'es');
   });
-  var ESTADO_LABEL = {asistio:'Asistió', falta:'Faltó', justificada:'Justificada'};
   listEl.innerHTML = sorted.map(function(c){
     var rec = attendanceFor(c.id, state.selectedDate);
     var estado = rec ? rec.estado : null;
     var assigned = (c.dias||[]).indexOf(dCode)!==-1;
-    var statusHtml = state.isAdmin
-      ? '<div class="status-btns">'
-        + '<button class="status-btn asistio'+(estado==='asistio'?' on':'')+'" data-child="'+c.id+'" data-estado="asistio">Asistió</button>'
-        + '<button class="status-btn falta'+(estado==='falta'?' on':'')+'" data-child="'+c.id+'" data-estado="falta">Faltó</button>'
-        + '<button class="status-btn justificada'+(estado==='justificada'?' on':'')+'" data-child="'+c.id+'" data-estado="justificada">Justificada</button>'
-        + '</div>'
-      : '<span class="status-chip'+(estado?' '+estado:'')+'">'+(estado?ESTADO_LABEL[estado]:'Sin registrar')+'</span>';
+    var statusHtml = '<div class="status-btns">'
+      + '<button class="status-btn asistio'+(estado==='asistio'?' on':'')+'" data-child="'+c.id+'" data-estado="asistio">Asistió</button>'
+      + '<button class="status-btn tarde'+(estado==='tarde'?' on':'')+'" data-child="'+c.id+'" data-estado="tarde">Tarde</button>'
+      + '<button class="status-btn falta'+(estado==='falta'?' on':'')+'" data-child="'+c.id+'" data-estado="falta">Faltó</button>'
+      + (state.isAdmin
+          ? '<button class="status-btn justificada'+(estado==='justificada'?' on':'')+'" data-child="'+c.id+'" data-estado="justificada">Justificada</button>'
+          : (estado==='justificada' ? '<span class="status-chip justificada">Justificada</span>' : ''))
+      + '</div>';
     return '<div class="child-row">'
       + '<div class="child-name">'+escapeHtml(c.nombre)+(assigned?'':'<span class="sub">no asignado hoy</span>')+'</div>'
       + statusHtml + '</div>';
@@ -492,11 +507,12 @@ function renderBalance(){
   var rows = state.children.map(function(c){
     var recs = state.attendance.filter(function(a){ return a.childId===c.id; });
     var asistio = recs.filter(function(a){return a.estado==='asistio';}).length;
+    var tarde = recs.filter(function(a){return a.estado==='tarde';}).length;
     var falta = recs.filter(function(a){return a.estado==='falta';}).length;
     var justificada = recs.filter(function(a){return a.estado==='justificada';}).length;
     var total = recs.length;
-    var pct = total ? Math.round((asistio/total)*100) : null;
-    return {c:c, asistio:asistio, falta:falta, justificada:justificada, total:total, pct:pct};
+    var pct = total ? Math.round(((asistio+tarde)/total)*100) : null;
+    return {c:c, asistio:asistio, tarde:tarde, falta:falta, justificada:justificada, total:total, pct:pct};
   }).sort(function(a,b){
     if(b.falta !== a.falta) return b.falta - a.falta;
     return (a.c.nombre||'').localeCompare(b.c.nombre||'', 'es');
@@ -504,7 +520,7 @@ function renderBalance(){
 
   var html = '<div class="table-wrap"><table><thead><tr>'
     + '<th>Niño/a</th><th>Días</th><th class="num">Sesiones</th><th class="num">Asistió</th>'
-    + '<th class="num">Faltó</th><th class="num">Justif.</th><th>% Asistencia</th>'
+    + '<th class="num">Tarde</th><th class="num">Faltó</th><th class="num">Justif.</th><th>% Asistencia</th>'
     + '</tr></thead><tbody>';
 
   rows.forEach(function(r){
@@ -515,6 +531,7 @@ function renderBalance(){
       + '<td>'+days+'</td>'
       + '<td class="num">'+r.total+'</td>'
       + '<td class="num">'+r.asistio+'</td>'
+      + '<td class="num">'+r.tarde+'</td>'
       + '<td class="num">'+r.falta+'</td>'
       + '<td class="num">'+r.justificada+'</td>'
       + '<td>' + (r.pct===null ? '<span style="color:var(--ink-dim);">—</span>' :
