@@ -129,6 +129,17 @@ function updateAuthUI(){
   document.getElementById('eventForm').hidden = !state.isAdmin;
   document.getElementById('importToggleBtn').hidden = !state.isAdmin;
   if(!state.isAdmin) document.getElementById('importCard').hidden = true;
+
+  var adminOnlyTabWasActive = false;
+  document.querySelectorAll('.tab-btn[data-admin-only]').forEach(function(btn){
+    btn.hidden = !state.isAdmin;
+    if(!state.isAdmin && btn.classList.contains('active')) adminOnlyTabWasActive = true;
+  });
+  if(adminOnlyTabWasActive){
+    var calBtn = document.querySelector('.tab-btn[data-tab="calendario"]');
+    document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.toggle('active', b===calBtn); });
+    document.querySelectorAll('.panel').forEach(function(p){ p.classList.toggle('active', p.id==='panel-calendario'); });
+  }
   if(loggedIn){
     adminOpenBtn.hidden = true;
     adminLoginForm.hidden = true;
