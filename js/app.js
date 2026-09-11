@@ -79,17 +79,28 @@ var adminCancelBtn = document.getElementById('adminCancelBtn');
 var adminActive = document.getElementById('adminActive');
 var adminLogoutBtn = document.getElementById('adminLogoutBtn');
 var adminLoginError = document.getElementById('adminLoginError');
+var upgradeAdminBtn = document.getElementById('upgradeAdminBtn');
 
 adminOpenBtn.addEventListener('click', function(){
   adminOpenBtn.hidden = true;
   adminLoginForm.hidden = false;
   document.getElementById('adminPassword').focus();
 });
+upgradeAdminBtn.addEventListener('click', function(){
+  adminActive.hidden = true;
+  adminLoginForm.hidden = false;
+  document.getElementById('loginAsAdmin').checked = true;
+  document.getElementById('adminPassword').focus();
+});
 adminCancelBtn.addEventListener('click', function(){
   adminLoginForm.hidden = true;
-  adminOpenBtn.hidden = false;
   adminLoginError.textContent = '';
   adminLoginForm.reset();
+  if(state.isMonitor){
+    adminActive.hidden = false;
+  } else {
+    adminOpenBtn.hidden = false;
+  }
 });
 adminLoginForm.addEventListener('submit', function(e){
   e.preventDefault();
@@ -122,6 +133,7 @@ function updateAuthUI(){
     adminOpenBtn.hidden = true;
     adminLoginForm.hidden = true;
     adminActive.hidden = false;
+    upgradeAdminBtn.hidden = state.isAdmin;
     document.getElementById('roleChip').textContent = state.isAdmin ? 'Administrador' : 'Acceso';
   } else {
     adminActive.hidden = true;
