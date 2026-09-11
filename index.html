@@ -7,7 +7,7 @@
 <link rel="icon" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Karla:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="css/styles.css?v=10">
+<link rel="stylesheet" href="css/styles.css?v=11">
 </head>
 <body>
 
@@ -31,29 +31,35 @@
         <span class="brand-place">Utrera</span>
       </div>
     </div>
-    <nav class="tabs" role="tablist">
+    <nav class="tabs" role="tablist" id="tabsNav" hidden>
       <button class="tab-btn active" data-tab="calendario">Calendario</button>
       <button class="tab-btn" data-tab="ninos">Niños</button>
       <button class="tab-btn" data-tab="asistencia">Asistencia</button>
       <button class="tab-btn" data-tab="balance">Balance</button>
     </nav>
     <div class="sidebar-auth" id="sidebarAuth">
-      <button class="btn ghost small" id="adminOpenBtn">Acceso administrador</button>
+      <button class="btn ghost small" id="adminOpenBtn">Iniciar sesión</button>
       <form id="adminLoginForm" class="admin-login-form" hidden>
         <input type="password" id="adminPassword" placeholder="Contraseña" autocomplete="current-password" required>
+        <label class="login-role"><input type="checkbox" id="loginAsAdmin"> Acceder como administrador</label>
         <button class="btn small" type="submit">Entrar</button>
         <button class="btn ghost small" type="button" id="adminCancelBtn">Cancelar</button>
         <div class="admin-login-error" id="adminLoginError"></div>
       </form>
       <div class="admin-active" id="adminActive" hidden>
-        <span class="chip on">Administrador</span>
+        <span class="chip on" id="roleChip">Conectado</span>
         <button class="btn ghost small" id="adminLogoutBtn">Cerrar sesión</button>
       </div>
     </div>
     <div class="sidebar-status" id="connStatus"><span class="dot"></span><span>Conectando…</span></div>
   </aside>
 
-  <main class="content">
+  <main class="content locked" id="mainContent">
+
+    <div class="auth-gate" id="authGate">
+      <h2>Acceso necesario</h2>
+      <p>Esta página es privada. Pulsa "Iniciar sesión" a la izquierda con la contraseña de acceso para ver el calendario, los niños y la asistencia del proyecto.</p>
+    </div>
 
     <section class="panel active" id="panel-calendario">
       <div class="panel-head">
@@ -226,6 +232,6 @@
   </main>
 </div>
 
-<script type="module" src="js/app.js?v=10"></script>
+<script type="module" src="js/app.js?v=12"></script>
 </body>
 </html>

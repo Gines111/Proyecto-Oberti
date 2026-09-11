@@ -135,6 +135,20 @@ img{max-width:100%;}
   color:var(--danger);
   min-height:14px;
 }
+.login-role{
+  display:flex;align-items:center;gap:6px;width:100%;
+  font-size:12px;color:var(--ink-dim);cursor:pointer;
+}
+.login-role input{width:auto;accent-color:var(--accent);}
+
+.content.locked .panel{display:none !important;}
+.content:not(.locked) #authGate{display:none;}
+.auth-gate{
+  max-width:440px;margin:60px auto;text-align:center;
+  display:flex;flex-direction:column;gap:10px;align-items:center;
+}
+.auth-gate h2{font-size:22px;}
+.auth-gate p{color:var(--ink-dim);font-size:14.5px;}
 .admin-active{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 
 .sidebar-status{

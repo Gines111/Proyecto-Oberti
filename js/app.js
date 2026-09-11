@@ -8,6 +8,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 
 var ADMIN_EMAIL = 'ginespo2004@gmail.com';
+var MONITOR_EMAIL = 'entrada@proyecto-oberti.app';
 
 var DAYS = [
   {code:'L',label:'Lunes'},{code:'M',label:'Martes'},{code:'X',label:'Miércoles'},
@@ -42,6 +43,7 @@ var state = {
   editingChildId:null,
   editingEventId:null,
   isAdmin:false,
+  isMonitor:false,
   childSearch:'',
   eventFilter:'todos',
   turnoFilter:'todos'
@@ -93,8 +95,10 @@ adminLoginForm.addEventListener('submit', function(e){
   e.preventDefault();
   if(!auth) return;
   var pass = document.getElementById('adminPassword').value;
+  var asAdmin = document.getElementById('loginAsAdmin').checked;
+  var email = asAdmin ? ADMIN_EMAIL : MONITOR_EMAIL;
   adminLoginError.textContent = '';
-  signInWithEmailAndPassword(auth, ADMIN_EMAIL, pass).then(function(){
+  signInWithEmailAndPassword(auth, email, pass).then(function(){
     adminLoginForm.reset();
     closeMobileMenu();
   }).catch(function(){
@@ -107,14 +111,18 @@ adminLogoutBtn.addEventListener('click', function(){
 });
 
 function updateAuthUI(){
+  var loggedIn = state.isMonitor;
+  document.getElementById('mainContent').classList.toggle('locked', !loggedIn);
+  document.getElementById('tabsNav').hidden = !loggedIn;
   document.getElementById('childFormCard').hidden = !state.isAdmin;
   document.getElementById('eventForm').hidden = !state.isAdmin;
   document.getElementById('importToggleBtn').hidden = !state.isAdmin;
   if(!state.isAdmin) document.getElementById('importCard').hidden = true;
-  if(state.isAdmin){
+  if(loggedIn){
     adminOpenBtn.hidden = true;
     adminLoginForm.hidden = true;
     adminActive.hidden = false;
+    document.getElementById('roleChip').textContent = state.isAdmin ? 'Administrador' : 'Acceso';
   } else {
     adminActive.hidden = true;
     adminOpenBtn.hidden = false;
@@ -677,7 +685,8 @@ if(!firebaseConfig.apiKey || firebaseConfig.apiKey === 'TU_API_KEY'){
     setStatus('Conectando…');
 
     onAuthStateChanged(auth, function(user){
-      state.isAdmin = !!user;
+      state.isAdmin = !!user && user.email === ADMIN_EMAIL;
+      state.isMonitor = !!user;
       updateAuthUI();
       renderAll();
     });
