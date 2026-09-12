@@ -1,0 +1,7 @@
+# Datos reales de niños (nunca deben subirse a GitHub)
+Niños*.txt
+descarga.png
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
