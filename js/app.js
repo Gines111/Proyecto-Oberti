@@ -1,7 +1,7 @@
 import { firebaseConfig } from './firebase-config.js';
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
 import {
-  getFirestore, collection, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot
+  getFirestore, collection, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, getDoc
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import {
   getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut
@@ -371,9 +371,13 @@ document.getElementById('childForm').addEventListener('submit', function(e){
   var dias = Array.prototype.slice.call(chDaysEl.querySelectorAll('input:checked')).map(function(i){return i.value;});
 
   if(state.editingChildId){
-    updateDoc(doc(childrenCol, state.editingChildId), {nombre:nombre, notas:notas, dias:dias, curso:curso, colegio:colegio, turno:turno, extraescolares:extraescolares});
+    var childId = state.editingChildId;
+    updateDoc(doc(childrenCol, childId), {nombre:nombre, dias:dias, curso:curso, colegio:colegio, turno:turno, extraescolares:extraescolares});
+    setDoc(doc(childrenCol, childId, 'private', 'info'), {notas:notas});
   } else {
-    addDoc(childrenCol, {nombre:nombre, notas:notas, dias:dias, curso:curso, colegio:colegio, turno:turno, extraescolares:extraescolares, activo:true, creado:Date.now()});
+    addDoc(childrenCol, {nombre:nombre, dias:dias, curso:curso, colegio:colegio, turno:turno, extraescolares:extraescolares, activo:true, creado:Date.now()}).then(function(ref){
+      if(notas) setDoc(doc(ref, 'private', 'info'), {notas:notas});
+    });
   }
   state.editingChildId = null;
   e.target.reset();
@@ -383,7 +387,7 @@ document.getElementById('childForm').addEventListener('submit', function(e){
 function startEditChild(child){
   state.editingChildId = child.id;
   document.getElementById('chNombre').value = child.nombre || '';
-  document.getElementById('chNotas').value = child.notas || '';
+  document.getElementById('chNotas').value = '';
   document.getElementById('chCurso').value = child.curso || '';
   document.getElementById('chColegio').value = child.colegio || '';
   document.getElementById('chTurno').value = child.turno || '';
@@ -393,6 +397,11 @@ function startEditChild(child){
   });
   renderChildForm();
   document.getElementById('childForm').scrollIntoView({behavior:'smooth', block:'center'});
+  if(db){
+    getDoc(doc(childrenCol, child.id, 'private', 'info')).then(function(snap){
+      if(state.editingChildId===child.id) document.getElementById('chNotas').value = snap.exists() ? (snap.data().notas||'') : '';
+    }).catch(function(){});
+  }
 }
 
 function renderChildList(){
@@ -422,7 +431,6 @@ function renderChildList(){
       + '<div class="child-name">'+escapeHtml(c.nombre)
         + (meta?'<span class="sub">'+escapeHtml(meta)+'</span>':'')
         + (c.extraescolares?'<span class="sub">Extraescolares: '+escapeHtml(c.extraescolares)+'</span>':'')
-        + (c.notas?'<span class="sub">'+escapeHtml(c.notas)+'</span>':'')
         + '</div>'
       + '<div class="child-days">'+days+'</div>'
       + (state.isAdmin ? '<div class="child-actions">'
@@ -517,7 +525,7 @@ document.getElementById('importParseBtn').addEventListener('click', function(){
       if(!r.nombre.trim()) return;
       addDoc(childrenCol, {
         nombre:r.nombre.trim(), curso:r.curso.trim(), colegio:r.colegio.trim(), turno:r.turno.trim(),
-        dias:[], notas:'', extraescolares:'', activo:true, creado:Date.now()
+        dias:[], extraescolares:'', activo:true, creado:Date.now()
       });
     });
     previewEl.hidden = true;
@@ -673,6 +681,38 @@ function renderBalance(){
   html += '</tbody></table></div>';
   wrap.innerHTML = html;
 }
+
+// ================= COPIA DE SEGURIDAD =================
+document.getElementById('backupBtn').addEventListener('click', function(){
+  if(!db || !state.isAdmin) return;
+  var btn = this;
+  btn.disabled = true;
+  btn.textContent = 'Generando…';
+  Promise.all(state.children.map(function(c){
+    return getDoc(doc(childrenCol, c.id, 'private', 'info')).then(function(snap){
+      return Object.assign({}, c, {notas: snap.exists() ? (snap.data().notas||'') : ''});
+    }).catch(function(){ return c; });
+  })).then(function(childrenFull){
+    var data = {
+      exportado: new Date().toISOString(),
+      children: childrenFull,
+      events: state.events,
+      attendance: state.attendance
+    };
+    var blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'oberti-backup-' + todayISO() + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }).finally(function(){
+    btn.disabled = false;
+    btn.textContent = 'Descargar copia de seguridad';
+  });
+});
 
 function renderAll(){
   renderCalendar();
