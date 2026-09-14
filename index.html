@@ -33,9 +33,9 @@
     </div>
     <nav class="tabs" role="tablist" id="tabsNav" hidden>
       <button class="tab-btn active" data-tab="calendario">Calendario</button>
-      <button class="tab-btn" data-tab="ninos" data-admin-only="1">Niños</button>
+      <button class="tab-btn" data-tab="ninos" data-perm="ninos">Niños</button>
       <button class="tab-btn" data-tab="asistencia">Asistencia</button>
-      <button class="tab-btn" data-tab="balance" data-admin-only="1">Balance</button>
+      <button class="tab-btn" data-tab="balance" data-perm="balance">Balance</button>
       <button class="tab-btn" data-tab="usuarios" data-admin-only="1">Usuarios</button>
     </nav>
     <div class="sidebar-auth" id="sidebarAuth">
@@ -180,8 +180,8 @@
             <label for="chExtraescolares">Actividades extraescolares (opcional)</label>
             <input type="text" id="chExtraescolares" placeholder="Ej. Fútbol los martes">
           </div>
-          <div class="field">
-            <label for="chNotas">Notas (opcional)</label>
+          <div class="field" id="chNotasField">
+            <label for="chNotas">Notas (opcional, solo la ven administradores/as)</label>
             <textarea id="chNotas" placeholder="Alergias, contacto familiar, observaciones…"></textarea>
           </div>
           <div style="display:flex;gap:8px;">
@@ -240,12 +240,17 @@
               <label for="usNombre">Nombre</label>
               <input type="text" id="usNombre" placeholder="Nombre y apellidos">
             </div>
-            <div class="field">
-              <label for="usRole">Permiso</label>
-              <select id="usRole">
-                <option value="monitor">Monitor/a (ver y marcar asistencia)</option>
-                <option value="admin">Administrador/a (control total)</option>
-              </select>
+          </div>
+          <div class="field">
+            <label class="login-role"><input type="checkbox" id="usAdmin"> Administrador/a (control total: usuarios, notas privadas, borrar cosas)</label>
+          </div>
+          <div class="field" id="usPermsWrap">
+            <label>Permisos adicionales (para quien no es administrador/a)</label>
+            <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:6px;">
+              <label style="display:inline-flex;align-items:center;gap:6px;"><input type="checkbox" id="permNinos"> Ver y editar Niños</label>
+              <label style="display:inline-flex;align-items:center;gap:6px;"><input type="checkbox" id="permBalance"> Ver Balance</label>
+              <label style="display:inline-flex;align-items:center;gap:6px;"><input type="checkbox" id="permCalendario"> Editar Calendario</label>
+              <label style="display:inline-flex;align-items:center;gap:6px;"><input type="checkbox" id="permJustificar"> Justificar faltas</label>
             </div>
           </div>
           <div style="display:flex;gap:8px;">
@@ -271,6 +276,6 @@
   </main>
 </div>
 
-<script type="module" src="js/app.js?v=17"></script>
+<script type="module" src="js/app.js?v=18"></script>
 </body>
 </html>

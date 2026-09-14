@@ -50,11 +50,13 @@ var state = {
   isAdmin:false,
   isMonitor:false,
   currentEmail:null,
+  perms:{ninos:false, balance:false, calendarioEditar:false, justificar:false},
   roles:[],
   childSearch:'',
   eventFilter:'todos',
   turnoFilter:'todos'
 };
+function can(p){ return state.isAdmin || !!(state.perms && state.perms[p]); }
 
 var db = null, auth = null;
 var childrenCol, eventsCol, attendanceCol, rolesCol, loginsCol;
@@ -137,15 +139,22 @@ function updateAuthUI(){
   var loggedIn = state.isMonitor;
   document.getElementById('mainContent').classList.toggle('locked', !loggedIn);
   document.getElementById('tabsNav').hidden = !loggedIn;
-  document.getElementById('childFormCard').hidden = !state.isAdmin;
-  document.getElementById('eventForm').hidden = !state.isAdmin;
-  document.getElementById('importToggleBtn').hidden = !state.isAdmin;
-  if(!state.isAdmin) document.getElementById('importCard').hidden = true;
+  document.getElementById('childFormCard').hidden = !can('ninos');
+  document.getElementById('chNotasField').hidden = !state.isAdmin;
+  document.getElementById('eventForm').hidden = !can('calendarioEditar');
+  document.getElementById('importToggleBtn').hidden = !can('ninos');
+  if(!can('ninos')) document.getElementById('importCard').hidden = true;
+  document.getElementById('backupBtn').hidden = !can('balance');
 
   var adminOnlyTabWasActive = false;
   document.querySelectorAll('.tab-btn[data-admin-only]').forEach(function(btn){
     btn.hidden = !state.isAdmin;
     if(!state.isAdmin && btn.classList.contains('active')) adminOnlyTabWasActive = true;
+  });
+  document.querySelectorAll('.tab-btn[data-perm]').forEach(function(btn){
+    var allowed = can(btn.dataset.perm);
+    btn.hidden = !allowed;
+    if(!allowed && btn.classList.contains('active')) adminOnlyTabWasActive = true;
   });
   if(adminOnlyTabWasActive){
     var calBtn = document.querySelector('.tab-btn[data-tab="calendario"]');
@@ -211,7 +220,7 @@ function renderCalendar(){
     var evs = eventsByDate[iso] || [];
     var dow = cellDate.getDay();
     var cls = 'cal-cell'+(out?' out':'')+(iso===today?' today':'')+((dow===0||dow===6)?' weekend':'');
-    if(state.isAdmin) cls += ' clickable';
+    if(can('calendarioEditar')) cls += ' clickable';
     var tooltip = '';
     if(evs.length===1){
       cls += ' has-event tipo-'+evs[0].tipo;
@@ -241,17 +250,17 @@ function renderCalendar(){
     listEl.innerHTML = '<div class="event-list">' + upcoming.map(function(ev){
       var d = new Date(ev.fecha+'T00:00:00');
       var isToday = ev.fecha === today;
-      return '<div class="event-item'+(state.isAdmin?' clickable':'')+'" data-id="'+ev.id+'">'
+      return '<div class="event-item'+(can('calendarioEditar')?' clickable':'')+'" data-id="'+ev.id+'">'
         + '<div class="event-date'+(isToday?' is-today':'')+'">'+(isToday?'Hoy':d.getDate())+(isToday?'':'<small>'+MESES_ABR[d.getMonth()]+'</small>')+'</div>'
         + '<div class="event-body"><div class="event-title">'+escapeHtml(ev.titulo)+'</div>'
         + (ev.descripcion ? '<div class="event-desc">'+escapeHtml(ev.descripcion)+'</div>' : '') + '</div>'
         + '<span class="chip event-type tipo-'+ev.tipo+'">'+TIPO_LABEL[ev.tipo]+'</span>'
-        + (state.isAdmin ? '<button class="event-del" data-id="'+ev.id+'" title="Eliminar" aria-label="Eliminar fecha">×</button>' : '')
+        + (can('calendarioEditar') ? '<button class="event-del" data-id="'+ev.id+'" title="Eliminar" aria-label="Eliminar fecha">×</button>' : '')
         + '</div>';
     }).join('') + '</div>';
     listEl.querySelectorAll('.event-item').forEach(function(item){
       item.addEventListener('click', function(e){
-        if(!state.isAdmin || e.target.closest('.event-del')) return;
+        if(!can('calendarioEditar') || e.target.closest('.event-del')) return;
         var ev = state.events.find(function(x){ return x.id===item.dataset.id; });
         if(ev) startEditEvent(ev);
       });
@@ -259,7 +268,7 @@ function renderCalendar(){
     listEl.querySelectorAll('.event-del').forEach(function(btn){
       btn.addEventListener('click', function(e){
         e.stopPropagation();
-        if(!db || !state.isAdmin) return;
+        if(!db || !can('calendarioEditar')) return;
         var ev = state.events.find(function(x){ return x.id===btn.dataset.id; });
         var nombre = ev ? ev.titulo : 'esta fecha';
         if(confirm('¿Eliminar "'+nombre+'"? No se puede deshacer.')){
@@ -315,7 +324,7 @@ function startEditEvent(ev){
 }
 
 document.getElementById('calGrid').addEventListener('click', function(e){
-  if(!state.isAdmin) return;
+  if(!can('calendarioEditar')) return;
   var cell = e.target.closest('.cal-cell');
   if(!cell || !cell.dataset.date) return;
   var evs = state.events.filter(function(ev){ return ev.fecha===cell.dataset.date; });
@@ -334,7 +343,7 @@ document.getElementById('evCancelBtn').addEventListener('click', function(){
 
 document.getElementById('eventForm').addEventListener('submit', function(e){
   e.preventDefault();
-  if(!db || !state.isAdmin) return;
+  if(!db || !can('calendarioEditar')) return;
   var fecha = document.getElementById('evFecha').value;
   var tipo = document.getElementById('evTipo').value;
   var titulo = document.getElementById('evTitulo').value.trim();
@@ -371,7 +380,7 @@ document.getElementById('chCancelBtn').addEventListener('click', function(){
 
 document.getElementById('childForm').addEventListener('submit', function(e){
   e.preventDefault();
-  if(!db || !state.isAdmin) return;
+  if(!db || !can('ninos')) return;
   var nombre = document.getElementById('chNombre').value.trim();
   if(!nombre) return;
   var notas = document.getElementById('chNotas').value.trim();
@@ -384,10 +393,10 @@ document.getElementById('childForm').addEventListener('submit', function(e){
   if(state.editingChildId){
     var childId = state.editingChildId;
     updateDoc(doc(childrenCol, childId), {nombre:nombre, dias:dias, curso:curso, colegio:colegio, turno:turno, extraescolares:extraescolares, modificadoPor:state.currentEmail, modificado:Date.now()});
-    setDoc(doc(childrenCol, childId, 'private', 'info'), {notas:notas, modificadoPor:state.currentEmail, modificado:Date.now()});
+    if(state.isAdmin) setDoc(doc(childrenCol, childId, 'private', 'info'), {notas:notas, modificadoPor:state.currentEmail, modificado:Date.now()});
   } else {
     addDoc(childrenCol, {nombre:nombre, dias:dias, curso:curso, colegio:colegio, turno:turno, extraescolares:extraescolares, activo:true, creado:Date.now(), creadoPor:state.currentEmail}).then(function(ref){
-      if(notas) setDoc(doc(ref, 'private', 'info'), {notas:notas, modificadoPor:state.currentEmail, modificado:Date.now()});
+      if(state.isAdmin && notas) setDoc(doc(ref, 'private', 'info'), {notas:notas, modificadoPor:state.currentEmail, modificado:Date.now()});
     });
   }
   state.editingChildId = null;
@@ -444,7 +453,7 @@ function renderChildList(){
         + (c.extraescolares?'<span class="sub">Extraescolares: '+escapeHtml(c.extraescolares)+'</span>':'')
         + '</div>'
       + '<div class="child-days">'+days+'</div>'
-      + (state.isAdmin ? '<div class="child-actions">'
+      + (can('ninos') ? '<div class="child-actions">'
         + '<button class="btn ghost small" data-edit="'+c.id+'">Editar</button>'
         + '<button class="btn ghost small" data-toggle="'+c.id+'">'+(c.activo===false?'Reactivar':'Dar de baja')+'</button>'
         + '</div>' : '')
@@ -459,7 +468,7 @@ function renderChildList(){
   });
   el.querySelectorAll('[data-toggle]').forEach(function(btn){
     btn.addEventListener('click', function(){
-      if(!db || !state.isAdmin) return;
+      if(!db || !can('ninos')) return;
       var c = state.children.find(function(x){return x.id===btn.dataset.toggle;});
       if(!c) return;
       var reactivando = c.activo===false;
@@ -525,7 +534,7 @@ document.getElementById('importParseBtn').addEventListener('click', function(){
     document.getElementById('importText').value = '';
   });
   document.getElementById('importConfirmBtn').addEventListener('click', function(){
-    if(!db || !state.isAdmin) return;
+    if(!db || !can('ninos')) return;
     var checks = previewEl.querySelectorAll('input[type=checkbox]');
     var toImport = [];
     checks.forEach(function(chk){
@@ -573,7 +582,7 @@ function attendanceFor(childId, fecha){
 
 function setAttendance(childId, fecha, estado){
   if(!db) return;
-  if(estado==='justificada' && !state.isAdmin) return;
+  if(estado==='justificada' && !can('justificar')) return;
   var current = attendanceFor(childId, fecha);
   var next = current && current.estado===estado ? null : estado;
   var id = childId+'__'+fecha;
@@ -631,7 +640,7 @@ function renderAsistencia(){
       + '<button class="status-btn asistio'+(estado==='asistio'?' on':'')+'" data-child="'+c.id+'" data-estado="asistio">Asistió</button>'
       + '<button class="status-btn tarde'+(estado==='tarde'?' on':'')+'" data-child="'+c.id+'" data-estado="tarde">Tarde</button>'
       + '<button class="status-btn falta'+(estado==='falta'?' on':'')+'" data-child="'+c.id+'" data-estado="falta">Faltó</button>'
-      + (state.isAdmin
+      + (can('justificar')
           ? '<button class="status-btn justificada'+(estado==='justificada'?' on':'')+'" data-child="'+c.id+'" data-estado="justificada">Justificada</button>'
           : (estado==='justificada' ? '<span class="status-chip justificada">Justificada</span>' : ''))
       + '</div>';
@@ -672,18 +681,32 @@ document.getElementById('usCancelBtn').addEventListener('click', function(){
   renderUserForm();
 });
 
+var usAdminEl = document.getElementById('usAdmin');
+var usPermsWrapEl = document.getElementById('usPermsWrap');
+usAdminEl.addEventListener('change', function(){
+  usPermsWrapEl.style.opacity = usAdminEl.checked ? '0.4' : '1';
+  usPermsWrapEl.querySelectorAll('input').forEach(function(i){ i.disabled = usAdminEl.checked; });
+});
+
 document.getElementById('userForm').addEventListener('submit', function(e){
   e.preventDefault();
   if(!db || !state.isAdmin) return;
   var email = normalizeLoginId(document.getElementById('usEmail').value);
   if(!email) return;
   var nombre = document.getElementById('usNombre').value.trim();
-  var role = document.getElementById('usRole').value;
-  setDoc(doc(rolesCol, email), {nombre:nombre, role:role, actualizadoPor:state.currentEmail, actualizado:Date.now()}, {merge:true});
+  var isAdminUser = usAdminEl.checked;
+  var permisos = {
+    ninos: document.getElementById('permNinos').checked,
+    balance: document.getElementById('permBalance').checked,
+    calendarioEditar: document.getElementById('permCalendario').checked,
+    justificar: document.getElementById('permJustificar').checked
+  };
+  setDoc(doc(rolesCol, email), {nombre:nombre, admin:isAdminUser, permisos:permisos, actualizadoPor:state.currentEmail, actualizado:Date.now()});
   state.editingUserEmail = null;
   e.target.reset();
   document.getElementById('usEmail').disabled = false;
   usEmailHint.textContent = '';
+  usAdminEl.dispatchEvent(new Event('change'));
   renderUserForm();
 });
 
@@ -691,11 +714,18 @@ function startEditUser(u){
   state.editingUserEmail = u.id;
   document.getElementById('usEmail').value = u.id;
   document.getElementById('usNombre').value = u.nombre || '';
-  document.getElementById('usRole').value = u.role || 'monitor';
+  usAdminEl.checked = !!u.admin;
+  var p = u.permisos || {};
+  document.getElementById('permNinos').checked = !!p.ninos;
+  document.getElementById('permBalance').checked = !!p.balance;
+  document.getElementById('permCalendario').checked = !!p.calendarioEditar;
+  document.getElementById('permJustificar').checked = !!p.justificar;
+  usAdminEl.dispatchEvent(new Event('change'));
   renderUserForm();
   document.getElementById('userForm').scrollIntoView({behavior:'smooth', block:'center'});
 }
 
+var PERM_LABELS = {ninos:'Niños', balance:'Balance', calendarioEditar:'Calendario', justificar:'Justificar'};
 function renderUserList(){
   var el = document.getElementById('userList');
   if(!el) return;
@@ -704,13 +734,17 @@ function renderUserList(){
     return;
   }
   var sorted = state.roles.slice().sort(function(a,b){
-    if((a.role==='admin') !== (b.role==='admin')) return a.role==='admin' ? -1 : 1;
+    if(!!a.admin !== !!b.admin) return a.admin ? -1 : 1;
     return (a.nombre||a.id).localeCompare(b.nombre||b.id, 'es');
   });
   el.innerHTML = sorted.map(function(u){
+    var badges = u.admin
+      ? '<span class="chip on">Administrador/a</span>'
+      : (Object.keys(PERM_LABELS).filter(function(k){ return u.permisos && u.permisos[k]; })
+          .map(function(k){ return '<span class="chip">'+PERM_LABELS[k]+'</span>'; }).join('') || '<span class="chip">sin permisos</span>');
     return '<div class="child-row">'
       + '<div class="child-name">'+escapeHtml(u.nombre||'(sin nombre)')+'<span class="sub">'+escapeHtml(u.id)+'</span></div>'
-      + '<div class="child-days"><span class="chip'+(u.role==='admin'?' on':'')+'">'+(u.role==='admin'?'Administrador/a':'Monitor/a')+'</span></div>'
+      + '<div class="child-days">'+badges+'</div>'
       + '<div class="child-actions">'
         + '<button class="btn ghost small" data-edit-user="'+u.id+'">Editar</button>'
         + (u.id===state.currentEmail ? '' : '<button class="btn ghost small" data-del-user="'+u.id+'">Quitar acceso</button>')
@@ -781,7 +815,7 @@ function renderBalance(){
 
 // ================= COPIA DE SEGURIDAD =================
 document.getElementById('backupBtn').addEventListener('click', function(){
-  if(!db || !state.isAdmin) return;
+  if(!db || !can('balance')) return;
   var btn = this;
   btn.disabled = true;
   btn.textContent = 'Generando…';
@@ -853,6 +887,7 @@ if(!firebaseConfig.apiKey || firebaseConfig.apiKey === 'TU_API_KEY'){
         state.isAdmin = false;
         state.isMonitor = false;
         state.currentEmail = null;
+        state.perms = {ninos:false, balance:false, calendarioEditar:false, justificar:false};
         updateAuthUI();
         renderAll();
         return;
@@ -860,10 +895,13 @@ if(!firebaseConfig.apiKey || firebaseConfig.apiKey === 'TU_API_KEY'){
       state.currentEmail = user.email;
       getDoc(doc(rolesCol, user.email)).then(function(snap){
         if(snap.exists()){
-          state.isAdmin = snap.data().role === 'admin';
+          var data = snap.data();
+          state.isAdmin = data.admin === true;
+          state.perms = Object.assign({ninos:false, balance:false, calendarioEditar:false, justificar:false}, data.permisos||{});
           state.isMonitor = true;
         } else {
           state.isAdmin = false;
+          state.perms = {ninos:false, balance:false, calendarioEditar:false, justificar:false};
           state.isMonitor = false;
         }
         if(state.isAdmin) attachRolesListener();
@@ -871,6 +909,7 @@ if(!firebaseConfig.apiKey || firebaseConfig.apiKey === 'TU_API_KEY'){
         renderAll();
       }).catch(function(){
         state.isAdmin = false;
+        state.perms = {ninos:false, balance:false, calendarioEditar:false, justificar:false};
         state.isMonitor = false;
         updateAuthUI();
         renderAll();
