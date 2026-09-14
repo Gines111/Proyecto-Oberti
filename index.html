@@ -36,12 +36,13 @@
       <button class="tab-btn" data-tab="ninos" data-admin-only="1">Niños</button>
       <button class="tab-btn" data-tab="asistencia">Asistencia</button>
       <button class="tab-btn" data-tab="balance" data-admin-only="1">Balance</button>
+      <button class="tab-btn" data-tab="usuarios" data-admin-only="1">Usuarios</button>
     </nav>
     <div class="sidebar-auth" id="sidebarAuth">
       <button class="btn ghost small" id="adminOpenBtn">Iniciar sesión</button>
       <form id="adminLoginForm" class="admin-login-form" hidden>
+        <input type="email" id="loginEmail" placeholder="Email" autocomplete="username" required>
         <input type="password" id="adminPassword" placeholder="Contraseña" autocomplete="current-password" required>
-        <label class="login-role"><input type="checkbox" id="loginAsAdmin"> Acceder como administrador</label>
         <button class="btn small" type="submit">Entrar</button>
         <button class="btn ghost small" type="button" id="adminCancelBtn">Cancelar</button>
         <div class="admin-login-error" id="adminLoginError"></div>
@@ -49,7 +50,6 @@
       <div class="admin-active" id="adminActive" hidden>
         <span class="chip on" id="roleChip">Conectado</span>
         <button class="btn ghost small" id="adminLogoutBtn">Cerrar sesión</button>
-        <button class="btn ghost small" id="upgradeAdminBtn" hidden>Acceder como administrador</button>
       </div>
     </div>
     <div class="sidebar-status" id="connStatus"><span class="dot"></span><span>Conectando…</span></div>
@@ -223,6 +223,42 @@
       </div>
     </section>
 
+    <section class="panel" id="panel-usuarios">
+      <div class="panel-head">
+        <div><h2>Usuarios</h2><div class="panel-sub">Quién puede entrar en la aplicación y con qué permiso. Primero crea la cuenta (email + contraseña) en Firebase Console → Authentication, y luego añádela aquí para darle acceso.</div></div>
+      </div>
+      <div class="card">
+        <h3 id="userFormTitle">Añadir usuario</h3>
+        <form id="userForm">
+          <div class="form-row">
+            <div class="field" style="flex:2 1 220px;">
+              <label for="usEmail">Email (el mismo con el que se creó en Firebase)</label>
+              <input type="email" id="usEmail" placeholder="nombre@email.com" required>
+            </div>
+            <div class="field">
+              <label for="usNombre">Nombre</label>
+              <input type="text" id="usNombre" placeholder="Nombre y apellidos">
+            </div>
+            <div class="field">
+              <label for="usRole">Permiso</label>
+              <select id="usRole">
+                <option value="monitor">Monitor/a (ver y marcar asistencia)</option>
+                <option value="admin">Administrador/a (control total)</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn" type="submit" id="usSubmitBtn">Añadir</button>
+            <button class="btn ghost" type="button" id="usCancelBtn" style="display:none;">Cancelar edición</button>
+          </div>
+        </form>
+      </div>
+      <div class="card">
+        <h3>Listado</h3>
+        <div id="userList"></div>
+      </div>
+    </section>
+
     <section class="panel" id="panel-balance">
       <div class="panel-head">
         <div><h2>Balance</h2><div class="panel-sub">Faltas acumuladas y porcentaje de asistencia por niño, según lo registrado.</div></div>
@@ -234,6 +270,6 @@
   </main>
 </div>
 
-<script type="module" src="js/app.js?v=15"></script>
+<script type="module" src="js/app.js?v=16"></script>
 </body>
 </html>

@@ -7,9 +7,6 @@ import {
   getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 
-var ADMIN_EMAIL = 'ginespo2004@gmail.com';
-var MONITOR_EMAIL = 'entrada@proyecto-oberti.app';
-
 var DAYS = [
   {code:'L',label:'Lunes'},{code:'M',label:'Martes'},{code:'X',label:'Miércoles'},
   {code:'J',label:'Jueves'},{code:'V',label:'Viernes'},{code:'S',label:'Sábado'},{code:'D',label:'Domingo'}
@@ -42,15 +39,30 @@ var state = {
   selectedDate:todayISO(),
   editingChildId:null,
   editingEventId:null,
+  editingUserEmail:null,
   isAdmin:false,
   isMonitor:false,
+  currentEmail:null,
+  roles:[],
   childSearch:'',
   eventFilter:'todos',
   turnoFilter:'todos'
 };
 
 var db = null, auth = null;
-var childrenCol, eventsCol, attendanceCol;
+var childrenCol, eventsCol, attendanceCol, rolesCol, loginsCol;
+var unsubRoles = null;
+function attachRolesListener(){
+  if(unsubRoles || !db) return;
+  unsubRoles = onSnapshot(rolesCol, function(snap){
+    state.roles = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+    renderUserList();
+  }, function(err){ console.error(err); });
+}
+function detachRolesListener(){
+  if(unsubRoles){ unsubRoles(); unsubRoles = null; }
+  state.roles = [];
+}
 
 // ---------- mobile menu ----------
 var menuBtn = document.getElementById('menuBtn');
@@ -79,18 +91,11 @@ var adminCancelBtn = document.getElementById('adminCancelBtn');
 var adminActive = document.getElementById('adminActive');
 var adminLogoutBtn = document.getElementById('adminLogoutBtn');
 var adminLoginError = document.getElementById('adminLoginError');
-var upgradeAdminBtn = document.getElementById('upgradeAdminBtn');
 
 adminOpenBtn.addEventListener('click', function(){
   adminOpenBtn.hidden = true;
   adminLoginForm.hidden = false;
-  document.getElementById('adminPassword').focus();
-});
-upgradeAdminBtn.addEventListener('click', function(){
-  adminActive.hidden = true;
-  adminLoginForm.hidden = false;
-  document.getElementById('loginAsAdmin').checked = true;
-  document.getElementById('adminPassword').focus();
+  document.getElementById('loginEmail').focus();
 });
 adminCancelBtn.addEventListener('click', function(){
   adminLoginForm.hidden = true;
@@ -105,15 +110,15 @@ adminCancelBtn.addEventListener('click', function(){
 adminLoginForm.addEventListener('submit', function(e){
   e.preventDefault();
   if(!auth) return;
+  var email = document.getElementById('loginEmail').value.trim();
   var pass = document.getElementById('adminPassword').value;
-  var asAdmin = document.getElementById('loginAsAdmin').checked;
-  var email = asAdmin ? ADMIN_EMAIL : MONITOR_EMAIL;
   adminLoginError.textContent = '';
-  signInWithEmailAndPassword(auth, email, pass).then(function(){
+  signInWithEmailAndPassword(auth, email, pass).then(function(cred){
     adminLoginForm.reset();
     closeMobileMenu();
+    if(loginsCol) addDoc(loginsCol, {email: cred.user.email, fecha: Date.now()}).catch(function(){});
   }).catch(function(){
-    adminLoginError.textContent = 'Contraseña incorrecta.';
+    adminLoginError.textContent = 'Email o contraseña incorrectos.';
   });
 });
 adminLogoutBtn.addEventListener('click', function(){
@@ -144,8 +149,7 @@ function updateAuthUI(){
     adminOpenBtn.hidden = true;
     adminLoginForm.hidden = true;
     adminActive.hidden = false;
-    upgradeAdminBtn.hidden = state.isAdmin;
-    document.getElementById('roleChip').textContent = state.isAdmin ? 'Administrador' : 'Acceso';
+    document.getElementById('roleChip').textContent = (state.isAdmin ? 'Administrador/a' : 'Monitor/a') + (state.currentEmail ? ' · '+state.currentEmail : '');
   } else {
     adminActive.hidden = true;
     adminOpenBtn.hidden = false;
@@ -330,9 +334,9 @@ document.getElementById('eventForm').addEventListener('submit', function(e){
   var descripcion = document.getElementById('evDesc').value.trim();
   if(!fecha || !titulo) return;
   if(state.editingEventId){
-    updateDoc(doc(eventsCol, state.editingEventId), {fecha:fecha, tipo:tipo, titulo:titulo, descripcion:descripcion});
+    updateDoc(doc(eventsCol, state.editingEventId), {fecha:fecha, tipo:tipo, titulo:titulo, descripcion:descripcion, modificadoPor:state.currentEmail, modificado:Date.now()});
   } else {
-    addDoc(eventsCol, {fecha:fecha, tipo:tipo, titulo:titulo, descripcion:descripcion, creado:Date.now()});
+    addDoc(eventsCol, {fecha:fecha, tipo:tipo, titulo:titulo, descripcion:descripcion, creado:Date.now(), creadoPor:state.currentEmail});
   }
   state.editingEventId = null;
   e.target.reset();
@@ -372,11 +376,11 @@ document.getElementById('childForm').addEventListener('submit', function(e){
 
   if(state.editingChildId){
     var childId = state.editingChildId;
-    updateDoc(doc(childrenCol, childId), {nombre:nombre, dias:dias, curso:curso, colegio:colegio, turno:turno, extraescolares:extraescolares});
-    setDoc(doc(childrenCol, childId, 'private', 'info'), {notas:notas});
+    updateDoc(doc(childrenCol, childId), {nombre:nombre, dias:dias, curso:curso, colegio:colegio, turno:turno, extraescolares:extraescolares, modificadoPor:state.currentEmail, modificado:Date.now()});
+    setDoc(doc(childrenCol, childId, 'private', 'info'), {notas:notas, modificadoPor:state.currentEmail, modificado:Date.now()});
   } else {
-    addDoc(childrenCol, {nombre:nombre, dias:dias, curso:curso, colegio:colegio, turno:turno, extraescolares:extraescolares, activo:true, creado:Date.now()}).then(function(ref){
-      if(notas) setDoc(doc(ref, 'private', 'info'), {notas:notas});
+    addDoc(childrenCol, {nombre:nombre, dias:dias, curso:curso, colegio:colegio, turno:turno, extraescolares:extraescolares, activo:true, creado:Date.now(), creadoPor:state.currentEmail}).then(function(ref){
+      if(notas) setDoc(doc(ref, 'private', 'info'), {notas:notas, modificadoPor:state.currentEmail, modificado:Date.now()});
     });
   }
   state.editingChildId = null;
@@ -453,7 +457,7 @@ function renderChildList(){
       if(!c) return;
       var reactivando = c.activo===false;
       if(reactivando || confirm('¿Dar de baja a '+c.nombre+'? Podrás reactivarlo/a cuando quieras; su historial de asistencia se conserva.')){
-        updateDoc(doc(childrenCol, c.id), {activo: reactivando});
+        updateDoc(doc(childrenCol, c.id), {activo: reactivando, modificadoPor:state.currentEmail, modificado:Date.now()});
       }
     });
   });
@@ -525,7 +529,7 @@ document.getElementById('importParseBtn').addEventListener('click', function(){
       if(!r.nombre.trim()) return;
       addDoc(childrenCol, {
         nombre:r.nombre.trim(), curso:r.curso.trim(), colegio:r.colegio.trim(), turno:r.turno.trim(),
-        dias:[], extraescolares:'', activo:true, creado:Date.now()
+        dias:[], extraescolares:'', activo:true, creado:Date.now(), creadoPor:state.currentEmail
       });
     });
     previewEl.hidden = true;
@@ -569,7 +573,7 @@ function setAttendance(childId, fecha, estado){
   if(next===null){
     deleteDoc(doc(attendanceCol, id)).catch(function(){});
   } else {
-    setDoc(doc(attendanceCol, id), {childId:childId, fecha:fecha, estado:next, anotado:Date.now()}).catch(function(){});
+    setDoc(doc(attendanceCol, id), {childId:childId, fecha:fecha, estado:next, anotado:Date.now(), anotadoPor:state.currentEmail}).catch(function(){});
   }
 }
 
@@ -632,6 +636,82 @@ function renderAsistencia(){
   listEl.querySelectorAll('.status-btn').forEach(function(btn){
     btn.addEventListener('click', function(){
       setAttendance(btn.dataset.child, state.selectedDate, btn.dataset.estado);
+    });
+  });
+}
+
+// ================= USUARIOS =================
+function renderUserForm(){
+  var editing = state.editingUserEmail;
+  document.getElementById('userFormTitle').textContent = editing ? 'Editar usuario' : 'Añadir usuario';
+  document.getElementById('usSubmitBtn').textContent = editing ? 'Guardar cambios' : 'Añadir';
+  document.getElementById('usCancelBtn').style.display = editing ? 'inline-flex' : 'none';
+  document.getElementById('usEmail').disabled = !!editing;
+}
+
+document.getElementById('usCancelBtn').addEventListener('click', function(){
+  state.editingUserEmail = null;
+  document.getElementById('userForm').reset();
+  document.getElementById('usEmail').disabled = false;
+  renderUserForm();
+});
+
+document.getElementById('userForm').addEventListener('submit', function(e){
+  e.preventDefault();
+  if(!db || !state.isAdmin) return;
+  var email = document.getElementById('usEmail').value.trim().toLowerCase();
+  if(!email) return;
+  var nombre = document.getElementById('usNombre').value.trim();
+  var role = document.getElementById('usRole').value;
+  setDoc(doc(rolesCol, email), {nombre:nombre, role:role, actualizadoPor:state.currentEmail, actualizado:Date.now()}, {merge:true});
+  state.editingUserEmail = null;
+  e.target.reset();
+  document.getElementById('usEmail').disabled = false;
+  renderUserForm();
+});
+
+function startEditUser(u){
+  state.editingUserEmail = u.id;
+  document.getElementById('usEmail').value = u.id;
+  document.getElementById('usNombre').value = u.nombre || '';
+  document.getElementById('usRole').value = u.role || 'monitor';
+  renderUserForm();
+  document.getElementById('userForm').scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+function renderUserList(){
+  var el = document.getElementById('userList');
+  if(!el) return;
+  if(!state.roles.length){
+    el.innerHTML = '<div class="empty">Todavía no hay usuarios añadidos.</div>';
+    return;
+  }
+  var sorted = state.roles.slice().sort(function(a,b){
+    if((a.role==='admin') !== (b.role==='admin')) return a.role==='admin' ? -1 : 1;
+    return (a.nombre||a.id).localeCompare(b.nombre||b.id, 'es');
+  });
+  el.innerHTML = sorted.map(function(u){
+    return '<div class="child-row">'
+      + '<div class="child-name">'+escapeHtml(u.nombre||'(sin nombre)')+'<span class="sub">'+escapeHtml(u.id)+'</span></div>'
+      + '<div class="child-days"><span class="chip'+(u.role==='admin'?' on':'')+'">'+(u.role==='admin'?'Administrador/a':'Monitor/a')+'</span></div>'
+      + '<div class="child-actions">'
+        + '<button class="btn ghost small" data-edit-user="'+u.id+'">Editar</button>'
+        + (u.id===state.currentEmail ? '' : '<button class="btn ghost small" data-del-user="'+u.id+'">Quitar acceso</button>')
+      + '</div>'
+      + '</div>';
+  }).join('');
+  el.querySelectorAll('[data-edit-user]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var u = state.roles.find(function(x){return x.id===btn.dataset.editUser;});
+      if(u) startEditUser(u);
+    });
+  });
+  el.querySelectorAll('[data-del-user]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      if(!db || !state.isAdmin) return;
+      if(confirm('¿Quitar el acceso de '+btn.dataset.delUser+'? Esto no borra su cuenta de Firebase, solo le retira el acceso a la app. Podrás volver a añadirlo/a cuando quieras.')){
+        deleteDoc(doc(rolesCol, btn.dataset.delUser));
+      }
     });
   });
 }
@@ -719,6 +799,7 @@ function renderAll(){
   renderChildList();
   renderAsistencia();
   renderBalance();
+  renderUserList();
 }
 
 // ================= FIREBASE WIRING =================
@@ -744,14 +825,39 @@ if(!firebaseConfig.apiKey || firebaseConfig.apiKey === 'TU_API_KEY'){
     childrenCol = collection(db, 'children');
     eventsCol = collection(db, 'events');
     attendanceCol = collection(db, 'attendance');
+    rolesCol = collection(db, 'roles');
+    loginsCol = collection(db, 'logins');
 
     setStatus('Conectando…');
 
     onAuthStateChanged(auth, function(user){
-      state.isAdmin = !!user && user.email === ADMIN_EMAIL;
-      state.isMonitor = !!user;
-      updateAuthUI();
-      renderAll();
+      detachRolesListener();
+      if(!user){
+        state.isAdmin = false;
+        state.isMonitor = false;
+        state.currentEmail = null;
+        updateAuthUI();
+        renderAll();
+        return;
+      }
+      state.currentEmail = user.email;
+      getDoc(doc(rolesCol, user.email)).then(function(snap){
+        if(snap.exists()){
+          state.isAdmin = snap.data().role === 'admin';
+          state.isMonitor = true;
+        } else {
+          state.isAdmin = false;
+          state.isMonitor = false;
+        }
+        if(state.isAdmin) attachRolesListener();
+        updateAuthUI();
+        renderAll();
+      }).catch(function(){
+        state.isAdmin = false;
+        state.isMonitor = false;
+        updateAuthUI();
+        renderAll();
+      });
     });
 
     onSnapshot(childrenCol, function(snap){
