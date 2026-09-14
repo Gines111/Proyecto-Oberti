@@ -195,7 +195,7 @@
           <h3>Listado</h3>
           <input type="text" id="childSearch" placeholder="Buscar por nombre…">
         </div>
-        <div id="childList"></div>
+        <div id="childList" class="scroll-list"></div>
       </div>
     </section>
 
@@ -211,7 +211,10 @@
         <div class="asis-summary" id="asisSummary"></div>
       </div>
       <div class="card">
-        <h3 id="asisListTitle">Niños</h3>
+        <div class="list-head">
+          <h3 id="asisListTitle">Niños</h3>
+          <input type="text" id="asisSearch" placeholder="Buscar por nombre…">
+        </div>
         <div class="ev-filter" id="turnoFilter">
           <button class="ev-filter-btn active" data-turno="todos">Todos</button>
           <button class="ev-filter-btn" data-turno="Turno 1">Turno 1</button>
@@ -219,7 +222,7 @@
           <button class="ev-filter-btn" data-turno="Ambos turnos">Ambos turnos</button>
           <button class="ev-filter-btn" data-turno="Sin turno">Sin turno</button>
         </div>
-        <div id="asisList"></div>
+        <div id="asisList" class="scroll-list"></div>
       </div>
     </section>
 
@@ -260,8 +263,11 @@
         </form>
       </div>
       <div class="card">
-        <h3>Listado</h3>
-        <div id="userList"></div>
+        <div class="list-head">
+          <h3>Listado</h3>
+          <input type="text" id="userSearch" placeholder="Buscar por nombre o email…">
+        </div>
+        <div id="userList" class="scroll-list"></div>
       </div>
     </section>
 
@@ -270,12 +276,13 @@
         <div><h2>Balance</h2><div class="panel-sub">Faltas acumuladas y porcentaje de asistencia por niño, según lo registrado.</div></div>
         <button class="btn ghost small" id="backupBtn">Descargar copia de seguridad</button>
       </div>
+      <div class="search-bar"><input type="text" id="balanceSearch" class="search-input" placeholder="Buscar por nombre…"></div>
       <div id="balanceWrap"></div>
     </section>
 
   </main>
 </div>
 
-<script type="module" src="js/app.js?v=18"></script>
+<script type="module" src="js/app.js?v=19"></script>
 </body>
 </html>

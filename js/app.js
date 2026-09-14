@@ -53,6 +53,9 @@ var state = {
   perms:{ninos:false, balance:false, calendarioEditar:false, justificar:false},
   roles:[],
   childSearch:'',
+  asisSearch:'',
+  userSearch:'',
+  balanceSearch:'',
   eventFilter:'todos',
   turnoFilter:'todos'
 };
@@ -371,6 +374,18 @@ document.getElementById('childSearch').addEventListener('input', function(e){
   state.childSearch = e.target.value;
   renderChildList();
 });
+document.getElementById('asisSearch').addEventListener('input', function(e){
+  state.asisSearch = e.target.value;
+  renderAsistencia();
+});
+document.getElementById('userSearch').addEventListener('input', function(e){
+  state.userSearch = e.target.value;
+  renderUserList();
+});
+document.getElementById('balanceSearch').addEventListener('input', function(e){
+  state.balanceSearch = e.target.value;
+  renderBalance();
+});
 
 document.getElementById('chCancelBtn').addEventListener('click', function(){
   state.editingChildId = null;
@@ -627,7 +642,13 @@ function renderAsistencia(){
     listEl.innerHTML = '<div class="empty">Ningún niño activo tiene el turno "'+escapeHtml(state.turnoFilter)+'".</div>';
     return;
   }
-  var sorted = filtered.slice().sort(function(a,b){
+  var q = state.asisSearch.trim().toLowerCase();
+  var searched = q ? filtered.filter(function(c){ return (c.nombre||'').toLowerCase().indexOf(q)!==-1; }) : filtered;
+  if(!searched.length){
+    listEl.innerHTML = '<div class="empty">Ningún niño coincide con "'+escapeHtml(state.asisSearch.trim())+'".</div>';
+    return;
+  }
+  var sorted = searched.slice().sort(function(a,b){
     var aOn = (a.dias||[]).indexOf(dCode)!==-1, bOn = (b.dias||[]).indexOf(dCode)!==-1;
     if(aOn !== bOn) return aOn ? -1 : 1;
     return (a.nombre||'').localeCompare(b.nombre||'', 'es');
@@ -733,7 +754,15 @@ function renderUserList(){
     el.innerHTML = '<div class="empty">Todavía no hay usuarios añadidos.</div>';
     return;
   }
-  var sorted = state.roles.slice().sort(function(a,b){
+  var q = state.userSearch.trim().toLowerCase();
+  var filteredRoles = q ? state.roles.filter(function(u){
+    return (u.nombre||'').toLowerCase().indexOf(q)!==-1 || u.id.toLowerCase().indexOf(q)!==-1;
+  }) : state.roles;
+  if(!filteredRoles.length){
+    el.innerHTML = '<div class="empty">Ningún usuario coincide con "'+escapeHtml(state.userSearch.trim())+'".</div>';
+    return;
+  }
+  var sorted = filteredRoles.slice().sort(function(a,b){
     if(!!a.admin !== !!b.admin) return a.admin ? -1 : 1;
     return (a.nombre||a.id).localeCompare(b.nombre||b.id, 'es');
   });
@@ -774,7 +803,13 @@ function renderBalance(){
     wrap.innerHTML = '<div class="empty">Todavía no hay datos suficientes. Registra asistencia para ver el balance.</div>';
     return;
   }
-  var rows = state.children.map(function(c){
+  var q = state.balanceSearch.trim().toLowerCase();
+  var childrenFiltered = q ? state.children.filter(function(c){ return (c.nombre||'').toLowerCase().indexOf(q)!==-1; }) : state.children;
+  if(!childrenFiltered.length){
+    wrap.innerHTML = '<div class="empty">Ningún niño coincide con "'+escapeHtml(state.balanceSearch.trim())+'".</div>';
+    return;
+  }
+  var rows = childrenFiltered.map(function(c){
     var recs = state.attendance.filter(function(a){ return a.childId===c.id; });
     var asistio = recs.filter(function(a){return a.estado==='asistio';}).length;
     var tarde = recs.filter(function(a){return a.estado==='tarde';}).length;
@@ -788,7 +823,7 @@ function renderBalance(){
     return (a.c.nombre||'').localeCompare(b.c.nombre||'', 'es');
   });
 
-  var html = '<div class="table-wrap"><table><thead><tr>'
+  var html = '<div class="table-wrap scroll-list"><table><thead><tr>'
     + '<th>Niño/a</th><th>Días</th><th class="num">Sesiones</th><th class="num">Asistió</th>'
     + '<th class="num">Tarde</th><th class="num">Faltó</th><th class="num">Justif.</th><th>% Asistencia</th>'
     + '</tr></thead><tbody>';
