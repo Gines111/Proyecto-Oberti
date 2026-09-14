@@ -7,6 +7,13 @@ import {
   getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 
+var DEFAULT_EMAIL_DOMAIN = '@proyecto-oberti.app';
+function normalizeLoginId(v){
+  v = (v||'').trim().toLowerCase();
+  if(!v || v.indexOf('@') !== -1) return v;
+  return v + DEFAULT_EMAIL_DOMAIN;
+}
+
 var DAYS = [
   {code:'L',label:'Lunes'},{code:'M',label:'Martes'},{code:'X',label:'Miércoles'},
   {code:'J',label:'Jueves'},{code:'V',label:'Viernes'},{code:'S',label:'Sábado'},{code:'D',label:'Domingo'}
@@ -110,7 +117,7 @@ adminCancelBtn.addEventListener('click', function(){
 adminLoginForm.addEventListener('submit', function(e){
   e.preventDefault();
   if(!auth) return;
-  var email = document.getElementById('loginEmail').value.trim();
+  var email = normalizeLoginId(document.getElementById('loginEmail').value);
   var pass = document.getElementById('adminPassword').value;
   adminLoginError.textContent = '';
   signInWithEmailAndPassword(auth, email, pass).then(function(cred){
@@ -649,17 +656,26 @@ function renderUserForm(){
   document.getElementById('usEmail').disabled = !!editing;
 }
 
+var usEmailEl = document.getElementById('usEmail');
+var usEmailHint = document.getElementById('usEmailHint');
+usEmailEl.addEventListener('input', function(){
+  var raw = usEmailEl.value.trim();
+  var norm = normalizeLoginId(raw);
+  usEmailHint.textContent = (raw && norm !== raw.toLowerCase()) ? ('Se creará/usará en Firebase como: '+norm) : '';
+});
+
 document.getElementById('usCancelBtn').addEventListener('click', function(){
   state.editingUserEmail = null;
   document.getElementById('userForm').reset();
   document.getElementById('usEmail').disabled = false;
+  usEmailHint.textContent = '';
   renderUserForm();
 });
 
 document.getElementById('userForm').addEventListener('submit', function(e){
   e.preventDefault();
   if(!db || !state.isAdmin) return;
-  var email = document.getElementById('usEmail').value.trim().toLowerCase();
+  var email = normalizeLoginId(document.getElementById('usEmail').value);
   if(!email) return;
   var nombre = document.getElementById('usNombre').value.trim();
   var role = document.getElementById('usRole').value;
@@ -667,6 +683,7 @@ document.getElementById('userForm').addEventListener('submit', function(e){
   state.editingUserEmail = null;
   e.target.reset();
   document.getElementById('usEmail').disabled = false;
+  usEmailHint.textContent = '';
   renderUserForm();
 });
 

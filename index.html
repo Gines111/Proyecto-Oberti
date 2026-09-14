@@ -41,7 +41,7 @@
     <div class="sidebar-auth" id="sidebarAuth">
       <button class="btn ghost small" id="adminOpenBtn">Iniciar sesión</button>
       <form id="adminLoginForm" class="admin-login-form" hidden>
-        <input type="email" id="loginEmail" placeholder="Email" autocomplete="username" required>
+        <input type="text" id="loginEmail" placeholder="Usuario o email" autocomplete="username" required>
         <input type="password" id="adminPassword" placeholder="Contraseña" autocomplete="current-password" required>
         <button class="btn small" type="submit">Entrar</button>
         <button class="btn ghost small" type="button" id="adminCancelBtn">Cancelar</button>
@@ -225,15 +225,16 @@
 
     <section class="panel" id="panel-usuarios">
       <div class="panel-head">
-        <div><h2>Usuarios</h2><div class="panel-sub">Quién puede entrar en la aplicación y con qué permiso. Primero crea la cuenta (email + contraseña) en Firebase Console → Authentication, y luego añádela aquí para darle acceso.</div></div>
+        <div><h2>Usuarios</h2><div class="panel-sub">Quién puede entrar en la aplicación y con qué permiso. Primero crea la cuenta (usuario o email + contraseña) en Firebase Console → Authentication, y luego añádela aquí para darle acceso. Si usas solo un nombre de usuario (sin @), la cuenta en Firebase debe crearse como "usuario@proyecto-oberti.app".</div></div>
       </div>
       <div class="card">
         <h3 id="userFormTitle">Añadir usuario</h3>
         <form id="userForm">
           <div class="form-row">
             <div class="field" style="flex:2 1 220px;">
-              <label for="usEmail">Email (el mismo con el que se creó en Firebase)</label>
-              <input type="email" id="usEmail" placeholder="nombre@email.com" required>
+              <label for="usEmail">Usuario o email</label>
+              <input type="text" id="usEmail" placeholder="ej. laura, o nombre@email.com" required>
+              <small id="usEmailHint" style="color:var(--ink-dim);display:block;margin-top:4px;"></small>
             </div>
             <div class="field">
               <label for="usNombre">Nombre</label>
@@ -270,6 +271,6 @@
   </main>
 </div>
 
-<script type="module" src="js/app.js?v=16"></script>
+<script type="module" src="js/app.js?v=17"></script>
 </body>
 </html>
