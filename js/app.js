@@ -1,7 +1,7 @@
 import { firebaseConfig } from './firebase-config.js';
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
 import {
-  getFirestore, collection, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, getDoc
+  getFirestore, collection, doc, addDoc, setDoc, updateDoc, deleteDoc, deleteField, onSnapshot, getDoc
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import {
   getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut
@@ -50,8 +50,10 @@ var state = {
   isAdmin:false,
   isMonitor:false,
   currentEmail:null,
-  perms:{ninos:false, balance:false, calendarioEditar:false, justificar:false},
+  perms:{ninos:false, balance:false, calendarioEditar:false, justificar:false, ordenadores:false},
   roles:[],
+  ordenadores:{},
+  pcTurno:'Turno 1',
   childSearch:'',
   asisSearch:'',
   userSearch:'',
@@ -59,10 +61,11 @@ var state = {
   eventFilter:'todos',
   turnoFilter:'todos'
 };
+function defaultPerms(){ return {ninos:false, balance:false, calendarioEditar:false, justificar:false, ordenadores:false}; }
 function can(p){ return state.isAdmin || !!(state.perms && state.perms[p]); }
 
 var db = null, auth = null;
-var childrenCol, eventsCol, attendanceCol, rolesCol, loginsCol;
+var childrenCol, eventsCol, attendanceCol, rolesCol, loginsCol, ordenadoresCol;
 var unsubRoles = null;
 function attachRolesListener(){
   if(unsubRoles || !db) return;
@@ -74,6 +77,21 @@ function attachRolesListener(){
 function detachRolesListener(){
   if(unsubRoles){ unsubRoles(); unsubRoles = null; }
   state.roles = [];
+}
+
+var unsubOrdenadores = null;
+function attachOrdenadoresListener(){
+  if(unsubOrdenadores || !db) return;
+  unsubOrdenadores = onSnapshot(ordenadoresCol, function(snap){
+    var obj = {};
+    snap.docs.forEach(function(d){ obj[d.id] = d.data(); });
+    state.ordenadores = obj;
+    renderOrdenadores();
+  }, function(err){ console.error(err); });
+}
+function detachOrdenadoresListener(){
+  if(unsubOrdenadores){ unsubOrdenadores(); unsubOrdenadores = null; }
+  state.ordenadores = {};
 }
 
 // ---------- mobile menu ----------
@@ -720,7 +738,8 @@ document.getElementById('userForm').addEventListener('submit', function(e){
     ninos: document.getElementById('permNinos').checked,
     balance: document.getElementById('permBalance').checked,
     calendarioEditar: document.getElementById('permCalendario').checked,
-    justificar: document.getElementById('permJustificar').checked
+    justificar: document.getElementById('permJustificar').checked,
+    ordenadores: document.getElementById('permOrdenadores').checked
   };
   setDoc(doc(rolesCol, email), {nombre:nombre, admin:isAdminUser, permisos:permisos, actualizadoPor:state.currentEmail, actualizado:Date.now()});
   state.editingUserEmail = null;
@@ -741,12 +760,13 @@ function startEditUser(u){
   document.getElementById('permBalance').checked = !!p.balance;
   document.getElementById('permCalendario').checked = !!p.calendarioEditar;
   document.getElementById('permJustificar').checked = !!p.justificar;
+  document.getElementById('permOrdenadores').checked = !!p.ordenadores;
   usAdminEl.dispatchEvent(new Event('change'));
   renderUserForm();
   document.getElementById('userForm').scrollIntoView({behavior:'smooth', block:'center'});
 }
 
-var PERM_LABELS = {ninos:'Niños', balance:'Balance', calendarioEditar:'Calendario', justificar:'Justificar'};
+var PERM_LABELS = {ninos:'Niños', balance:'Balance', calendarioEditar:'Calendario', justificar:'Justificar', ordenadores:'Ordenadores'};
 function renderUserList(){
   var el = document.getElementById('userList');
   if(!el) return;
@@ -794,6 +814,77 @@ function renderUserList(){
       }
     });
   });
+}
+
+// ================= ORDENADORES =================
+var PC_COUNT = 9;
+function pcChildLabel(c){ return c.nombre + (c.curso ? ' — '+c.curso : ''); }
+
+document.querySelectorAll('#pcTurnoFilter .ev-filter-btn').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    state.pcTurno = btn.dataset.turno;
+    document.querySelectorAll('#pcTurnoFilter .ev-filter-btn').forEach(function(b){ b.classList.toggle('active', b===btn); });
+    renderOrdenadores();
+  });
+});
+
+function setPuesto(n, child){
+  if(!db || !can('ordenadores')) return;
+  var field = 'puestos.'+n;
+  var payload = {};
+  payload[field] = child
+    ? {childId:child.id, childNombre:child.nombre, asignadoPor:state.currentEmail, asignado:Date.now()}
+    : deleteField();
+  setDoc(doc(ordenadoresCol, state.pcTurno), payload, {merge:true});
+}
+
+function renderOrdenadores(){
+  var active = state.children.filter(function(c){ return c.activo !== false; });
+  var dl = document.getElementById('pcChildrenList');
+  dl.innerHTML = active.map(function(c){ return '<option value="'+escapeHtml(pcChildLabel(c))+'">'; }).join('');
+  var byLabel = {};
+  active.forEach(function(c){ byLabel[pcChildLabel(c)] = c; });
+
+  var turnoDoc = state.ordenadores[state.pcTurno] || {};
+  var puestos = turnoDoc.puestos || {};
+  var editable = can('ordenadores');
+
+  var grid = document.getElementById('pcGrid');
+  var html = '';
+  for(var i=1;i<=PC_COUNT;i++){
+    var slot = puestos[i] || null;
+    html += '<div class="pc-card'+(slot?' filled':'')+'">'
+      + '<div class="pc-num">Puesto '+i+'</div>'
+      + '<input type="text" class="pc-input" list="pcChildrenList" data-puesto="'+i+'" value="'+(slot?escapeHtml(slot.childNombre||''):'')+'" placeholder="Escribe un nombre…"'+(editable?'':' disabled')+'>'
+      + (slot && editable ? '<button class="btn ghost small" data-clear="'+i+'">Vaciar</button>' : '')
+      + '</div>';
+  }
+  grid.innerHTML = html;
+
+  if(editable){
+    grid.querySelectorAll('input[data-puesto]').forEach(function(inp){
+      inp.addEventListener('change', function(){
+        var n = inp.dataset.puesto;
+        var label = inp.value.trim();
+        if(!label){
+          setPuesto(n, null);
+          return;
+        }
+        var c = byLabel[label];
+        if(c){
+          setPuesto(n, c);
+        } else {
+          var slot = puestos[n];
+          inp.value = slot ? (slot.childNombre||'') : '';
+        }
+      });
+    });
+    grid.querySelectorAll('[data-clear]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        setPuesto(btn.dataset.clear, null);
+      });
+    });
+  }
 }
 
 // ================= BALANCE =================
@@ -886,6 +977,7 @@ function renderAll(){
   renderAsistencia();
   renderBalance();
   renderUserList();
+  renderOrdenadores();
 }
 
 // ================= FIREBASE WIRING =================
@@ -913,16 +1005,18 @@ if(!firebaseConfig.apiKey || firebaseConfig.apiKey === 'TU_API_KEY'){
     attendanceCol = collection(db, 'attendance');
     rolesCol = collection(db, 'roles');
     loginsCol = collection(db, 'logins');
+    ordenadoresCol = collection(db, 'ordenadores');
 
     setStatus('Conectando…');
 
     onAuthStateChanged(auth, function(user){
       detachRolesListener();
+      detachOrdenadoresListener();
       if(!user){
         state.isAdmin = false;
         state.isMonitor = false;
         state.currentEmail = null;
-        state.perms = {ninos:false, balance:false, calendarioEditar:false, justificar:false};
+        state.perms = defaultPerms();
         updateAuthUI();
         renderAll();
         return;
@@ -932,19 +1026,20 @@ if(!firebaseConfig.apiKey || firebaseConfig.apiKey === 'TU_API_KEY'){
         if(snap.exists()){
           var data = snap.data();
           state.isAdmin = data.admin === true;
-          state.perms = Object.assign({ninos:false, balance:false, calendarioEditar:false, justificar:false}, data.permisos||{});
+          state.perms = Object.assign(defaultPerms(), data.permisos||{});
           state.isMonitor = true;
         } else {
           state.isAdmin = false;
-          state.perms = {ninos:false, balance:false, calendarioEditar:false, justificar:false};
+          state.perms = defaultPerms();
           state.isMonitor = false;
         }
         if(state.isAdmin) attachRolesListener();
+        if(can('ordenadores')) attachOrdenadoresListener();
         updateAuthUI();
         renderAll();
       }).catch(function(){
         state.isAdmin = false;
-        state.perms = {ninos:false, balance:false, calendarioEditar:false, justificar:false};
+        state.perms = defaultPerms();
         state.isMonitor = false;
         updateAuthUI();
         renderAll();
