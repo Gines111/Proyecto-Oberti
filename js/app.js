@@ -863,17 +863,19 @@ function renderOrdenadores(){
 
   if(editable){
     grid.querySelectorAll('input[data-puesto]').forEach(function(inp){
-      inp.addEventListener('change', function(){
+      inp.addEventListener('input', function(){
+        var label = inp.value.trim();
+        var c = byLabel[label];
+        if(c) setPuesto(inp.dataset.puesto, c);
+      });
+      inp.addEventListener('blur', function(){
         var n = inp.dataset.puesto;
         var label = inp.value.trim();
         if(!label){
           setPuesto(n, null);
           return;
         }
-        var c = byLabel[label];
-        if(c){
-          setPuesto(n, c);
-        } else {
+        if(!byLabel[label]){
           var slot = puestos[n];
           inp.value = slot ? (slot.childNombre||'') : '';
         }
