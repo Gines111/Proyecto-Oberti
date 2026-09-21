@@ -841,9 +841,8 @@ document.querySelectorAll('#pcTurnoFilter .ev-filter-btn').forEach(function(btn)
 
 function setPuesto(n, child){
   if(!db || !can('ordenadores')) return;
-  var field = 'puestos.'+n;
-  var payload = {};
-  payload[field] = child
+  var payload = {puestos:{}};
+  payload.puestos[n] = child
     ? {childId:child.id, childNombre:child.nombre, asignadoPor:state.currentEmail, asignado:Date.now()}
     : deleteField();
   setDoc(doc(ordenadoresCol, pcKey()), payload, {merge:true});
