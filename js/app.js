@@ -214,6 +214,7 @@ DAYS.forEach(function(d){
 });
 
 document.getElementById('asisFecha').value = state.selectedDate;
+document.getElementById('pcFecha').value = state.selectedDate;
 
 // ================= CALENDAR =================
 function renderCalendar(){
@@ -591,7 +592,9 @@ document.getElementById('importParseBtn').addEventListener('click', function(){
 // ================= ASISTENCIA =================
 document.getElementById('asisFecha').addEventListener('change', function(e){
   state.selectedDate = e.target.value || todayISO();
+  document.getElementById('pcFecha').value = state.selectedDate;
   renderAsistencia();
+  renderOrdenadores();
 });
 
 document.querySelectorAll('#turnoFilter .ev-filter-btn').forEach(function(btn){
@@ -819,6 +822,14 @@ function renderUserList(){
 // ================= ORDENADORES =================
 var PC_COUNT = 9;
 function pcChildLabel(c){ return c.nombre + (c.curso ? ' — '+c.curso : ''); }
+function pcKey(){ return state.selectedDate+'__'+state.pcTurno; }
+
+document.getElementById('pcFecha').addEventListener('change', function(e){
+  state.selectedDate = e.target.value || todayISO();
+  document.getElementById('asisFecha').value = state.selectedDate;
+  renderAsistencia();
+  renderOrdenadores();
+});
 
 document.querySelectorAll('#pcTurnoFilter .ev-filter-btn').forEach(function(btn){
   btn.addEventListener('click', function(){
@@ -835,17 +846,18 @@ function setPuesto(n, child){
   payload[field] = child
     ? {childId:child.id, childNombre:child.nombre, asignadoPor:state.currentEmail, asignado:Date.now()}
     : deleteField();
-  setDoc(doc(ordenadoresCol, state.pcTurno), payload, {merge:true});
+  setDoc(doc(ordenadoresCol, pcKey()), payload, {merge:true});
 }
 
 function renderOrdenadores(){
+  document.getElementById('pcFecha').value = state.selectedDate;
   var active = state.children.filter(function(c){ return c.activo !== false; });
   var dl = document.getElementById('pcChildrenList');
   dl.innerHTML = active.map(function(c){ return '<option value="'+escapeHtml(pcChildLabel(c))+'">'; }).join('');
   var byLabel = {};
   active.forEach(function(c){ byLabel[pcChildLabel(c)] = c; });
 
-  var turnoDoc = state.ordenadores[state.pcTurno] || {};
+  var turnoDoc = state.ordenadores[pcKey()] || {};
   var puestos = turnoDoc.puestos || {};
   var editable = can('ordenadores');
 
