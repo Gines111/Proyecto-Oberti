@@ -59,8 +59,16 @@ var state = {
   userSearch:'',
   balanceSearch:'',
   eventFilter:'todos',
-  turnoFilter:'todos'
+  turnoFilter:'todos',
+  calSel:null,
+  forceList:{},
+  periodo:'todo',
+  detailChild:null
 };
+function isoOf(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function longDate(iso){ return new Date(iso+'T00:00:00').toLocaleDateString('es-ES',{weekday:'long', day:'numeric', month:'long'}); }
+function shortDate(iso){ var d = new Date(iso+'T00:00:00'); return d.getDate()+' '+MESES_ABR[d.getMonth()]; }
+function festivoOn(iso){ return state.events.find(function(e){ return e.fecha===iso && e.tipo==='festivo'; }); }
 function defaultPerms(){ return {ninos:false, balance:false, calendarioEditar:false, justificar:false, ordenadores:false}; }
 function can(p){ return state.isAdmin || !!(state.perms && state.perms[p]); }
 
@@ -241,8 +249,8 @@ function renderCalendar(){
     var out = cellDate.getMonth() !== state.calMonth;
     var evs = eventsByDate[iso] || [];
     var dow = cellDate.getDay();
-    var cls = 'cal-cell'+(out?' out':'')+(iso===today?' today':'')+((dow===0||dow===6)?' weekend':'');
-    if(can('calendarioEditar')) cls += ' clickable';
+    var cls = 'cal-cell'+(out?' out':'')+(iso===today?' today':'')+((dow===0||dow===6)?' weekend':'')+(iso===state.calSel?' selected':'');
+    if(state.isMonitor) cls += ' clickable';
     var tooltip = '';
     if(evs.length===1){
       cls += ' has-event tipo-'+evs[0].tipo;
@@ -251,7 +259,8 @@ function renderCalendar(){
       cls += ' has-event multi';
       tooltip = evs.map(function(ev){ return '• '+ev.titulo; }).join('\n');
     }
-    html += '<div class="'+cls+'" data-date="'+iso+'"'+(tooltip?' data-tooltip="'+escapeHtml(tooltip)+'"':'')+'>'
+    html += '<div class="'+cls+'" data-date="'+iso+'"'+(tooltip?' data-tooltip="'+escapeHtml(tooltip)+'"':'')
+      + (state.isMonitor?' role="button" tabindex="0" aria-label="'+escapeHtml(longDate(iso)+(evs.length?', '+evs.length+' fecha'+(evs.length>1?'s':''):''))+'"':'')+'>'
       + '<span class="n">'+cellDate.getDate()+'</span>';
     if(evs.length>1){
       html += '<div class="dot-wrap">'+evs.map(function(ev){return '<span class="ev-dot tipo-'+ev.tipo+'"></span>';}).join('')+'</div>';
@@ -259,6 +268,7 @@ function renderCalendar(){
     html += '</div>';
   }
   grid.innerHTML = html;
+  renderDayBox();
 
   var listEl = document.getElementById('eventList');
   var upcoming = state.events.filter(function(e){
@@ -345,16 +355,60 @@ function startEditEvent(ev){
   document.getElementById('evTitulo').focus();
 }
 
+// ---- Día seleccionado: ver sus fechas, pasar lista o añadir ----
+function renderDayBox(){
+  var box = document.getElementById('dayBox');
+  if(!state.calSel || !state.isMonitor){ box.hidden = true; return; }
+  box.hidden = false;
+  document.getElementById('dayBoxTitle').textContent = longDate(state.calSel);
+  var evs = state.events.filter(function(ev){ return ev.fecha===state.calSel; });
+  var editable = can('calendarioEditar');
+  document.getElementById('dayBoxEvents').innerHTML = evs.length
+    ? evs.map(function(ev){
+        return '<div class="day-ev"><span class="chip event-type tipo-'+ev.tipo+'">'+TIPO_LABEL[ev.tipo]+'</span>'
+          + '<span class="event-title">'+escapeHtml(ev.titulo)+'</span>'
+          + (editable ? '<button class="btn ghost small" type="button" data-day-edit="'+ev.id+'">Editar</button>' : '')
+          + '</div>';
+      }).join('')
+    : '<div class="panel-sub">Nada apuntado este día.</div>';
+  document.getElementById('dayBoxAdd').hidden = !editable;
+  document.querySelectorAll('[data-day-edit]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var ev = state.events.find(function(x){ return x.id===btn.dataset.dayEdit; });
+      if(ev) startEditEvent(ev);
+    });
+  });
+}
+
+function selectCalDay(iso){
+  state.calSel = state.calSel===iso ? null : iso;
+  renderCalendar();
+  if(state.calSel && can('calendarioEditar') && !state.editingEventId) document.getElementById('evFecha').value = iso;
+}
+
 document.getElementById('calGrid').addEventListener('click', function(e){
-  if(!can('calendarioEditar')) return;
+  if(!state.isMonitor) return;
   var cell = e.target.closest('.cal-cell');
   if(!cell || !cell.dataset.date) return;
-  var evs = state.events.filter(function(ev){ return ev.fecha===cell.dataset.date; });
-  if(evs.length){
-    startEditEvent(evs[0]);
-  } else {
-    startNewEvent(cell.dataset.date);
-  }
+  selectCalDay(cell.dataset.date);
+});
+document.getElementById('calGrid').addEventListener('keydown', function(e){
+  if(e.key!=='Enter' && e.key!==' ') return;
+  var cell = e.target.closest('.cal-cell');
+  if(!cell || !state.isMonitor) return;
+  e.preventDefault();
+  selectCalDay(cell.dataset.date);
+});
+document.getElementById('dayBoxClose').addEventListener('click', function(){ state.calSel = null; renderCalendar(); });
+document.getElementById('dayBoxAdd').addEventListener('click', function(){ if(state.calSel) startNewEvent(state.calSel); });
+document.getElementById('dayBoxAsis').addEventListener('click', function(){
+  if(!state.calSel) return;
+  state.selectedDate = state.calSel;
+  document.getElementById('pcFecha').value = state.selectedDate;
+  renderAsistencia();
+  renderOrdenadores();
+  var btn = document.querySelector('.tab-btn[data-tab="asistencia"]');
+  if(btn) btn.click();
 });
 
 document.getElementById('evCancelBtn').addEventListener('click', function(){
@@ -418,6 +472,13 @@ document.getElementById('childForm').addEventListener('submit', function(e){
   var nombre = document.getElementById('chNombre').value.trim();
   if(!nombre) return;
   var notas = document.getElementById('chNotas').value.trim();
+  var privado = {
+    notas:notas,
+    contacto:document.getElementById('chContacto').value.trim(),
+    telefono:document.getElementById('chTelefono').value.trim(),
+    modificadoPor:state.currentEmail, modificado:Date.now()
+  };
+  var hayPrivado = !!(privado.notas || privado.contacto || privado.telefono);
   var curso = document.getElementById('chCurso').value.trim();
   var colegio = document.getElementById('chColegio').value.trim();
   var turno = document.getElementById('chTurno').value;
@@ -427,10 +488,10 @@ document.getElementById('childForm').addEventListener('submit', function(e){
   if(state.editingChildId){
     var childId = state.editingChildId;
     updateDoc(doc(childrenCol, childId), {nombre:nombre, dias:dias, curso:curso, colegio:colegio, turno:turno, extraescolares:extraescolares, modificadoPor:state.currentEmail, modificado:Date.now()});
-    if(state.isAdmin) setDoc(doc(childrenCol, childId, 'private', 'info'), {notas:notas, modificadoPor:state.currentEmail, modificado:Date.now()});
+    if(state.isAdmin) setDoc(doc(childrenCol, childId, 'private', 'info'), privado);
   } else {
     addDoc(childrenCol, {nombre:nombre, dias:dias, curso:curso, colegio:colegio, turno:turno, extraescolares:extraescolares, activo:true, creado:Date.now(), creadoPor:state.currentEmail}).then(function(ref){
-      if(state.isAdmin && notas) setDoc(doc(ref, 'private', 'info'), {notas:notas, modificadoPor:state.currentEmail, modificado:Date.now()});
+      if(state.isAdmin && hayPrivado) setDoc(doc(ref, 'private', 'info'), privado);
     });
   }
   state.editingChildId = null;
@@ -442,6 +503,8 @@ function startEditChild(child){
   state.editingChildId = child.id;
   document.getElementById('chNombre').value = child.nombre || '';
   document.getElementById('chNotas').value = '';
+  document.getElementById('chContacto').value = '';
+  document.getElementById('chTelefono').value = '';
   document.getElementById('chCurso').value = child.curso || '';
   document.getElementById('chColegio').value = child.colegio || '';
   document.getElementById('chTurno').value = child.turno || '';
@@ -451,9 +514,13 @@ function startEditChild(child){
   });
   renderChildForm();
   document.getElementById('childForm').scrollIntoView({behavior:'smooth', block:'center'});
-  if(db){
+  if(db && state.isAdmin){
     getDoc(doc(childrenCol, child.id, 'private', 'info')).then(function(snap){
-      if(state.editingChildId===child.id) document.getElementById('chNotas').value = snap.exists() ? (snap.data().notas||'') : '';
+      if(state.editingChildId!==child.id) return;
+      var p = snap.exists() ? snap.data() : {};
+      document.getElementById('chNotas').value = p.notas || '';
+      document.getElementById('chContacto').value = p.contacto || '';
+      document.getElementById('chTelefono').value = p.telefono || '';
     }).catch(function(){});
   }
 }
@@ -490,6 +557,7 @@ function renderChildList(){
       + (can('ninos') ? '<div class="child-actions">'
         + '<button class="btn ghost small" data-edit="'+c.id+'">Editar</button>'
         + '<button class="btn ghost small" data-toggle="'+c.id+'">'+(c.activo===false?'Reactivar':'Dar de baja')+'</button>'
+        + (state.isAdmin ? '<button class="btn danger-ghost small" data-delete-child="'+c.id+'">Borrar</button>' : '')
         + '</div>' : '')
       + '</div>';
   }).join('');
@@ -509,6 +577,20 @@ function renderChildList(){
       if(reactivando || confirm('¿Dar de baja a '+c.nombre+'? Podrás reactivarlo/a cuando quieras; su historial de asistencia se conserva.')){
         updateDoc(doc(childrenCol, c.id), {activo: reactivando, modificadoPor:state.currentEmail, modificado:Date.now()});
       }
+    });
+  });
+  el.querySelectorAll('[data-delete-child]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      if(!db || !state.isAdmin) return;
+      var c = state.children.find(function(x){return x.id===btn.dataset.deleteChild;});
+      if(!c) return;
+      var recs = state.attendance.filter(function(a){ return a.childId===c.id; });
+      if(!confirm('¿Borrar del todo a '+c.nombre+'? Se eliminarán su ficha, sus notas privadas y sus '+recs.length+' registros de asistencia. No se puede deshacer.\n\nSi solo ha dejado de venir, mejor usa "Dar de baja".')) return;
+      if(state.editingChildId===c.id){ state.editingChildId = null; document.getElementById('childForm').reset(); renderChildForm(); }
+      Promise.all(recs.map(function(a){ return deleteDoc(doc(attendanceCol, a.id)); }))
+        .then(function(){ return deleteDoc(doc(childrenCol, c.id, 'private', 'info')).catch(function(){}); })
+        .then(function(){ return deleteDoc(doc(childrenCol, c.id)); })
+        .catch(function(err){ console.error(err); alert('No se pudo borrar del todo. Revisa los permisos de Firestore.'); });
     });
   });
 }
@@ -642,19 +724,43 @@ function renderAsistencia(){
 
   var counts = {asistio:0, tarde:0, falta:0, justificada:0};
   forDate.forEach(function(a){ if(counts[a.estado]!==undefined) counts[a.estado]++; });
-  var sinRegistrar = filtered.length - forDate.length;
+  // Solo cuentan como pendientes los que suelen venir ese día
+  var pendientes = filtered.filter(function(c){
+    return (c.dias||[]).indexOf(dCode)!==-1 && !attendanceFor(c.id, state.selectedDate);
+  });
 
   document.getElementById('asisSummary').innerHTML = [
     ['Asistieron', counts.asistio, 'success'],
     ['Tarde', counts.tarde, 'brand-coral'],
     ['Faltaron', counts.falta, 'danger'],
     ['Justificadas', counts.justificada, 'warning'],
-    ['Sin registrar', Math.max(sinRegistrar,0), '']
+    ['Por marcar', pendientes.length, '']
   ].map(function(s){
     return '<div class="stat"><b style="'+(s[2]?'color:var(--'+s[2]+')':'')+'">'+s[1]+'</b><span>'+s[0]+'</span></div>';
   }).join('');
 
+  // Día de cierre: avisar y no mostrar la lista salvo que se pida
+  var fest = festivoOn(state.selectedDate);
+  var blocked = !!fest && !state.forceList[state.selectedDate];
+  var festEl = document.getElementById('asisFestivo');
+  festEl.innerHTML = fest
+    ? '<div class="asis-banner"><span><b>'+escapeHtml(fest.titulo)+'</b>: este día está marcado como cierre en el calendario.</span>'
+      + (blocked ? '<button class="btn ghost small" type="button" id="forceListBtn">Pasar lista igualmente</button>' : '') + '</div>'
+    : '';
+  var forceBtn = document.getElementById('forceListBtn');
+  if(forceBtn) forceBtn.addEventListener('click', function(){ state.forceList[state.selectedDate] = true; renderAsistencia(); });
+
+  var allBtn = document.getElementById('allPresentBtn');
+  allBtn.disabled = !db || blocked || !pendientes.length;
+  allBtn.textContent = pendientes.length ? 'Todos asistieron ('+pendientes.length+')' : 'Todos asistieron';
+  allBtn.title = state.turnoFilter==='todos' ? 'Marca como presentes a los que suelen venir hoy y aún no están marcados'
+    : 'Marca como presentes a los de '+state.turnoFilter+' que suelen venir hoy y aún no están marcados';
+
   var listEl = document.getElementById('asisList');
+  if(blocked){
+    listEl.innerHTML = '<div class="empty">Día de cierre: no hay lista que pasar.</div>';
+    return;
+  }
   if(!active.length){
     listEl.innerHTML = '<div class="empty">No hay niños activos todavía. Añádelos en la pestaña Niños.</div>';
     return;
@@ -697,6 +803,21 @@ function renderAsistencia(){
     });
   });
 }
+
+document.getElementById('allPresentBtn').addEventListener('click', function(){
+  if(!db) return;
+  var fecha = state.selectedDate, dCode = weekdayCode(fecha);
+  var todo = state.children.filter(function(c){
+    return c.activo!==false && matchesTurno(c) && (c.dias||[]).indexOf(dCode)!==-1 && !attendanceFor(c.id, fecha);
+  });
+  if(!todo.length) return;
+  var btn = this;
+  btn.disabled = true;
+  Promise.all(todo.map(function(c){
+    return setDoc(doc(attendanceCol, c.id+'__'+fecha), {childId:c.id, fecha:fecha, estado:'asistio', anotado:Date.now(), anotadoPor:state.currentEmail});
+  })).catch(function(err){ console.error(err); alert('Algunos no se pudieron guardar. Vuelve a intentarlo.'); })
+    .finally(function(){ renderAsistencia(); });
+});
 
 // ================= USUARIOS =================
 function renderUserForm(){
@@ -902,7 +1023,10 @@ function renderOrdenadores(){
 
 // ================= BALANCE =================
 function renderBalance(){
+  renderPeriodOptions();
+  document.getElementById('exportCsvBtn').hidden = !can('balance');
   var wrap = document.getElementById('balanceWrap');
+  if(!state.children.length) document.getElementById('balanceDetail').innerHTML = '';
   if(!state.children.length){
     wrap.innerHTML = '<div class="empty">Todavía no hay datos suficientes. Registra asistencia para ver el balance.</div>';
     return;
@@ -913,19 +1037,7 @@ function renderBalance(){
     wrap.innerHTML = '<div class="empty">Ningún niño coincide con "'+escapeHtml(state.balanceSearch.trim())+'".</div>';
     return;
   }
-  var rows = childrenFiltered.map(function(c){
-    var recs = state.attendance.filter(function(a){ return a.childId===c.id; });
-    var asistio = recs.filter(function(a){return a.estado==='asistio';}).length;
-    var tarde = recs.filter(function(a){return a.estado==='tarde';}).length;
-    var falta = recs.filter(function(a){return a.estado==='falta';}).length;
-    var justificada = recs.filter(function(a){return a.estado==='justificada';}).length;
-    var total = recs.length;
-    var pct = total ? Math.round(((asistio+tarde)/total)*100) : null;
-    return {c:c, asistio:asistio, tarde:tarde, falta:falta, justificada:justificada, total:total, pct:pct};
-  }).sort(function(a,b){
-    if(b.falta !== a.falta) return b.falta - a.falta;
-    return (a.c.nombre||'').localeCompare(b.c.nombre||'', 'es');
-  });
+  var rows = computeBalanceRows(childrenFiltered);
 
   var html = '<div class="table-wrap scroll-list"><table><thead><tr>'
     + '<th>Niño/a</th><th>Días</th><th class="num">Sesiones</th><th class="num">Asistió</th>'
@@ -935,7 +1047,7 @@ function renderBalance(){
   rows.forEach(function(r){
     var days = (r.c.dias||[]).length ? (r.c.dias||[]).join(' · ') : '—';
     var flag = r.pct!==null && r.pct<70;
-    html += '<tr class="'+(flag?'row-flag':'')+'">'
+    html += '<tr tabindex="0" data-child="'+r.c.id+'" class="'+(flag?'row-flag':'')+(state.detailChild===r.c.id?' sel':'')+'">'
       + '<td>'+escapeHtml(r.c.nombre)+(r.c.activo===false?' <span class="chip">baja</span>':'')+'</td>'
       + '<td>'+days+'</td>'
       + '<td class="num">'+r.total+'</td>'
@@ -950,7 +1062,105 @@ function renderBalance(){
   });
   html += '</tbody></table></div>';
   wrap.innerHTML = html;
+  wrap.querySelectorAll('tbody tr').forEach(function(tr){
+    function toggle(){ state.detailChild = state.detailChild===tr.dataset.child ? null : tr.dataset.child; renderBalance(); }
+    tr.addEventListener('click', toggle);
+    tr.addEventListener('keydown', function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); } });
+  });
+  renderBalanceDetail(rows);
 }
+
+// ---- Periodo del balance ----
+var periodoEl = document.getElementById('balPeriodo');
+periodoEl.addEventListener('change', function(){ state.periodo = periodoEl.value; renderBalance(); });
+
+function renderPeriodOptions(){
+  var months = {};
+  state.attendance.forEach(function(a){ if(a.fecha) months[a.fecha.slice(0,7)] = true; });
+  var q = Math.floor(new Date().getMonth()/3);
+  var opts = [['todo','Todo'],['trimestre','Este trimestre ('+MESES_ABR[q*3]+'–'+MESES_ABR[q*3+2]+')']];
+  Object.keys(months).sort().reverse().forEach(function(m){
+    var mo = +m.slice(5,7)-1;
+    opts.push([m, MESES[mo].charAt(0).toUpperCase()+MESES[mo].slice(1)+' '+m.slice(0,4)]);
+  });
+  if(!opts.some(function(o){ return o[0]===state.periodo; })) state.periodo = 'todo';
+  periodoEl.innerHTML = opts.map(function(o){
+    return '<option value="'+o[0]+'"'+(o[0]===state.periodo?' selected':'')+'>'+escapeHtml(o[1])+'</option>';
+  }).join('');
+}
+
+function inPeriod(fecha){
+  if(!fecha) return false;
+  if(state.periodo==='todo') return true;
+  if(state.periodo==='trimestre'){
+    var now = new Date(), q = Math.floor(now.getMonth()/3);
+    return fecha >= isoOf(new Date(now.getFullYear(), q*3, 1)) && fecha <= isoOf(new Date(now.getFullYear(), q*3+3, 0));
+  }
+  return fecha.slice(0,7) === state.periodo;
+}
+
+function computeBalanceRows(children){
+  return children.map(function(c){
+    var recs = state.attendance.filter(function(a){ return a.childId===c.id && inPeriod(a.fecha); });
+    var asistio = recs.filter(function(a){return a.estado==='asistio';}).length;
+    var tarde = recs.filter(function(a){return a.estado==='tarde';}).length;
+    var falta = recs.filter(function(a){return a.estado==='falta';}).length;
+    var justificada = recs.filter(function(a){return a.estado==='justificada';}).length;
+    // Las justificadas no penalizan: el % se calcula solo sobre asistió + tarde + faltó
+    var base = asistio + tarde + falta;
+    var pct = base ? Math.round(((asistio+tarde)/base)*100) : null;
+    return {c:c, recs:recs, asistio:asistio, tarde:tarde, falta:falta, justificada:justificada, total:recs.length, pct:pct};
+  }).sort(function(a,b){
+    if(b.falta !== a.falta) return b.falta - a.falta;
+    return (a.c.nombre||'').localeCompare(b.c.nombre||'', 'es');
+  });
+}
+
+function renderBalanceDetail(rows){
+  var el = document.getElementById('balanceDetail');
+  var r = rows.find(function(x){ return x.c.id===state.detailChild; });
+  if(!r){ el.innerHTML = ''; return; }
+  function pills(estado){
+    var ds = r.recs.filter(function(a){ return a.estado===estado; }).map(function(a){ return a.fecha; }).sort().reverse();
+    return ds.length
+      ? '<div class="date-pills">'+ds.map(function(f){ return '<span class="date-pill '+estado+'">'+shortDate(f)+'</span>'; }).join('')+'</div>'
+      : '<span class="panel-sub">Ninguna</span>';
+  }
+  var meta = [r.c.curso, r.c.colegio, r.c.turno].filter(Boolean).join(' · ');
+  el.innerHTML = '<div class="card" style="display:flex;flex-direction:column;gap:12px;">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;"><div><h3 style="margin:0;">'+escapeHtml(r.c.nombre)+'</h3>'
+    + (meta?'<div class="panel-sub">'+escapeHtml(meta)+'</div>':'')+'</div>'
+    + '<button class="btn ghost small" type="button" id="closeDetailBtn">Cerrar</button></div>'
+    + '<div class="detail-lists">'
+    + '<div><h4>Faltas ('+r.falta+')</h4>'+pills('falta')+'</div>'
+    + '<div><h4>Justificadas ('+r.justificada+')</h4>'+pills('justificada')+'</div>'
+    + '<div><h4>Tarde ('+r.tarde+')</h4>'+pills('tarde')+'</div>'
+    + '</div></div>';
+  document.getElementById('closeDetailBtn').addEventListener('click', function(){ state.detailChild = null; renderBalance(); });
+}
+
+// ---- Exportar a CSV (se abre en Excel) ----
+document.getElementById('exportCsvBtn').addEventListener('click', function(){
+  if(!can('balance')) return;
+  var rows = computeBalanceRows(state.children);
+  if(!rows.length) return;
+  function q(v){ v = String(v==null?'':v); return /[;"\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; }
+  function fechas(r, estado){ return r.recs.filter(function(a){ return a.estado===estado; }).map(function(a){ return a.fecha; }).sort().join(', '); }
+  var lines = [['Nombre','Curso','Colegio','Turno','Días','Sesiones','Asistió','Tarde','Faltó','Justificadas','% Asistencia','Fechas de falta','Fechas justificadas'].join(';')];
+  rows.forEach(function(r){
+    lines.push([r.c.nombre, r.c.curso, r.c.colegio, r.c.turno, (r.c.dias||[]).join(' '), r.total, r.asistio, r.tarde, r.falta, r.justificada,
+      r.pct===null?'':r.pct+'%', fechas(r,'falta'), fechas(r,'justificada')].map(q).join(';'));
+  });
+  var blob = new Blob(['﻿'+lines.join('\r\n')], {type:'text/csv;charset=utf-8'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'oberti-asistencia-'+(state.periodo==='todo'?todayISO():state.periodo)+'.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+});
 
 // ================= COPIA DE SEGURIDAD =================
 document.getElementById('backupBtn').addEventListener('click', function(){
@@ -960,7 +1170,8 @@ document.getElementById('backupBtn').addEventListener('click', function(){
   btn.textContent = 'Generando…';
   Promise.all(state.children.map(function(c){
     return getDoc(doc(childrenCol, c.id, 'private', 'info')).then(function(snap){
-      return Object.assign({}, c, {notas: snap.exists() ? (snap.data().notas||'') : ''});
+      var p = snap.exists() ? snap.data() : {};
+      return Object.assign({}, c, {notas: p.notas||'', contacto: p.contacto||'', telefono: p.telefono||''});
     }).catch(function(){ return c; });
   })).then(function(childrenFull){
     var data = {
@@ -1067,7 +1278,7 @@ if(!firebaseConfig.apiKey || firebaseConfig.apiKey === 'TU_API_KEY'){
 
     onSnapshot(eventsCol, function(snap){
       state.events = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
-      renderCalendar();
+      renderCalendar(); renderAsistencia();
     }, function(err){ setStatus('Error: '+err.message, 'bad'); });
 
     onSnapshot(attendanceCol, function(snap){

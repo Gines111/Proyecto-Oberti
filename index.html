@@ -7,7 +7,7 @@
 <link rel="icon" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Karla:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="css/styles.css?v=11">
+<link rel="stylesheet" href="css/styles.css?v=12">
 </head>
 <body>
 
@@ -94,6 +94,17 @@
             <button class="ev-filter-btn tipo-festivo" data-filtro="festivo">Cierre</button>
           </div>
           <div id="eventList"></div>
+          <div id="dayBox" class="day-box" hidden>
+            <div class="day-box-head">
+              <h3 id="dayBoxTitle" style="margin:0;">—</h3>
+              <button class="btn ghost small" type="button" id="dayBoxClose" aria-label="Cerrar día">×</button>
+            </div>
+            <div id="dayBoxEvents"></div>
+            <div class="day-box-actions">
+              <button class="btn small" type="button" id="dayBoxAsis">Pasar lista este día</button>
+              <button class="btn ghost small" type="button" id="dayBoxAdd">Añadir fecha este día</button>
+            </div>
+          </div>
           <form id="eventForm" hidden>
             <h3 id="eventFormTitle" style="margin:0;">Añadir fecha</h3>
             <div class="form-row">
@@ -181,9 +192,21 @@
             <label for="chExtraescolares">Actividades extraescolares (opcional)</label>
             <input type="text" id="chExtraescolares" placeholder="Ej. Fútbol los martes">
           </div>
-          <div class="field" id="chNotasField">
-            <label for="chNotas">Notas (opcional, solo la ven administradores/as)</label>
-            <textarea id="chNotas" placeholder="Alergias, contacto familiar, observaciones…"></textarea>
+          <div id="chNotasField" style="display:flex;flex-direction:column;gap:12px;">
+            <div class="form-row">
+              <div class="field">
+                <label for="chContacto">Persona de contacto (solo administradores/as)</label>
+                <input type="text" id="chContacto" placeholder="Ej. Madre, Ana">
+              </div>
+              <div class="field">
+                <label for="chTelefono">Teléfono (solo administradores/as)</label>
+                <input type="tel" id="chTelefono" placeholder="600 000 000">
+              </div>
+            </div>
+            <div class="field">
+              <label for="chNotas">Notas (opcional, solo la ven administradores/as)</label>
+              <textarea id="chNotas" placeholder="Alergias, observaciones…"></textarea>
+            </div>
           </div>
           <div style="display:flex;gap:8px;">
             <button class="btn" type="submit" id="chSubmitBtn">Añadir</button>
@@ -208,8 +231,12 @@
           <input type="date" id="asisFecha">
         </div>
       </div>
+      <div id="asisFestivo"></div>
       <div class="card">
-        <div class="asis-summary" id="asisSummary"></div>
+        <div class="asis-top">
+          <div class="asis-summary" id="asisSummary"></div>
+          <button class="btn" type="button" id="allPresentBtn">Todos asistieron</button>
+        </div>
       </div>
       <div class="card">
         <div class="list-head">
@@ -293,16 +320,23 @@
 
     <section class="panel" id="panel-balance">
       <div class="panel-head">
-        <div><h2>Balance</h2><div class="panel-sub">Faltas acumuladas y porcentaje de asistencia por niño, según lo registrado.</div></div>
-        <button class="btn ghost small" id="backupBtn">Descargar copia de seguridad</button>
+        <div><h2>Balance</h2><div class="panel-sub">Faltas y % de asistencia por niño. Las justificadas no bajan el porcentaje y "tarde" cuenta como asistencia. Toca una fila para ver los días.</div></div>
+        <div class="balance-tools">
+          <button class="btn ghost small" id="exportCsvBtn">Exportar a Excel (CSV)</button>
+          <button class="btn ghost small" id="backupBtn">Descargar copia de seguridad</button>
+        </div>
       </div>
-      <div class="search-bar"><input type="text" id="balanceSearch" class="search-input" placeholder="Buscar por nombre…"></div>
+      <div class="balance-filters">
+        <div class="search-bar"><input type="text" id="balanceSearch" class="search-input" placeholder="Buscar por nombre…"></div>
+        <select id="balPeriodo" aria-label="Periodo"></select>
+      </div>
       <div id="balanceWrap"></div>
+      <div id="balanceDetail"></div>
     </section>
 
   </main>
 </div>
 
-<script type="module" src="js/app.js?v=23"></script>
+<script type="module" src="js/app.js?v=24"></script>
 </body>
 </html>
