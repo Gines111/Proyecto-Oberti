@@ -102,6 +102,30 @@ function detachOrdenadoresListener(){
   state.ordenadores = {};
 }
 
+// Datos del proyecto: solo se leen con sesión iniciada (antes, Firebase lo deniega)
+var dataUnsubs = [];
+function attachDataListeners(){
+  if(dataUnsubs.length || !db) return;
+  dataUnsubs.push(onSnapshot(childrenCol, function(snap){
+    state.children = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+    renderChildList(); renderAsistencia(); renderBalance(); renderOrdenadores();
+    setStatus('Conectado', 'ok');
+  }, function(err){ setStatus('Error: '+err.message, 'bad'); }));
+  dataUnsubs.push(onSnapshot(eventsCol, function(snap){
+    state.events = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+    renderCalendar(); renderAsistencia();
+  }, function(err){ setStatus('Error: '+err.message, 'bad'); }));
+  dataUnsubs.push(onSnapshot(attendanceCol, function(snap){
+    state.attendance = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+    renderAsistencia(); renderBalance();
+  }, function(err){ setStatus('Error: '+err.message, 'bad'); }));
+}
+function detachDataListeners(){
+  dataUnsubs.forEach(function(u){ u(); });
+  dataUnsubs = [];
+  state.children = []; state.events = []; state.attendance = [];
+}
+
 // ---------- mobile menu ----------
 var menuBtn = document.getElementById('menuBtn');
 var sidebarEl = document.getElementById('sidebar');
@@ -1231,12 +1255,14 @@ if(!firebaseConfig.apiKey || firebaseConfig.apiKey === 'TU_API_KEY'){
     loginsCol = collection(db, 'logins');
     ordenadoresCol = collection(db, 'ordenadores');
 
-    setStatus('Conectando…');
+    setStatus('Sin sesión iniciada');
 
     onAuthStateChanged(auth, function(user){
       detachRolesListener();
       detachOrdenadoresListener();
+      detachDataListeners();
       if(!user){
+        setStatus('Sin sesión iniciada');
         state.isAdmin = false;
         state.isMonitor = false;
         state.currentEmail = null;
@@ -1257,6 +1283,8 @@ if(!firebaseConfig.apiKey || firebaseConfig.apiKey === 'TU_API_KEY'){
           state.perms = defaultPerms();
           state.isMonitor = false;
         }
+        if(state.isMonitor){ setStatus('Conectando…'); attachDataListeners(); }
+        else setStatus('Esta cuenta no tiene acceso', 'bad');
         if(state.isAdmin) attachRolesListener();
         if(can('ordenadores')) attachOrdenadoresListener();
         updateAuthUI();
@@ -1270,21 +1298,6 @@ if(!firebaseConfig.apiKey || firebaseConfig.apiKey === 'TU_API_KEY'){
       });
     });
 
-    onSnapshot(childrenCol, function(snap){
-      state.children = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
-      renderChildList(); renderAsistencia(); renderBalance();
-      setStatus('Conectado', 'ok');
-    }, function(err){ setStatus('Error: '+err.message, 'bad'); });
-
-    onSnapshot(eventsCol, function(snap){
-      state.events = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
-      renderCalendar(); renderAsistencia();
-    }, function(err){ setStatus('Error: '+err.message, 'bad'); });
-
-    onSnapshot(attendanceCol, function(snap){
-      state.attendance = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
-      renderAsistencia(); renderBalance();
-    }, function(err){ setStatus('Error: '+err.message, 'bad'); });
 
   } catch(err){
     setStatus('Error de configuración', 'bad');
