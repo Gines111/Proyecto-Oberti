@@ -7,7 +7,7 @@
 <link rel="icon" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Karla:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="css/styles.css?v=12">
+<link rel="stylesheet" href="css/styles.css?v=13">
 </head>
 <body>
 
@@ -51,7 +51,16 @@
       <div class="admin-active" id="adminActive" hidden>
         <span class="chip on" id="roleChip">Conectado</span>
         <button class="btn ghost small" id="adminLogoutBtn">Cerrar sesión</button>
+        <button class="btn ghost small" type="button" id="changePassBtn">Cambiar mi contraseña</button>
       </div>
+      <form id="changePassForm" class="admin-login-form" hidden>
+        <input type="password" id="cpCurrent" placeholder="Contraseña actual" autocomplete="current-password" required>
+        <input type="password" id="cpNew" placeholder="Nueva (mínimo 6)" autocomplete="new-password" minlength="6" required>
+        <input type="password" id="cpNew2" placeholder="Repite la nueva" autocomplete="new-password" minlength="6" required>
+        <button class="btn small" type="submit" id="cpSubmit">Guardar contraseña</button>
+        <button class="btn ghost small" type="button" id="cpCancel">Cancelar</button>
+        <div class="admin-login-error" id="cpMsg" role="status"></div>
+      </form>
     </div>
     <div class="sidebar-status" id="connStatus"><span class="dot"></span><span>Conectando…</span></div>
   </aside>
@@ -274,7 +283,7 @@
 
     <section class="panel" id="panel-usuarios">
       <div class="panel-head">
-        <div><h2>Usuarios</h2><div class="panel-sub">Quién puede entrar en la aplicación y con qué permiso. Primero crea la cuenta (usuario o email + contraseña) en Firebase Console → Authentication, y luego añádela aquí para darle acceso. Si usas solo un nombre de usuario (sin @), la cuenta en Firebase debe crearse como "usuario@proyecto-oberti.app".</div></div>
+        <div><h2>Usuarios</h2><div class="panel-sub">Quién puede entrar en la aplicación y con qué permiso. Al añadir a alguien con contraseña, se crea su cuenta y se le dan los permisos a la vez. Si la cuenta ya existía, deja la contraseña vacía y solo se guardan los permisos.</div></div>
       </div>
       <div class="card">
         <h3 id="userFormTitle">Añadir usuario</h3>
@@ -288,6 +297,14 @@
             <div class="field">
               <label for="usNombre">Nombre</label>
               <input type="text" id="usNombre" placeholder="Nombre y apellidos">
+            </div>
+          </div>
+          <div class="field" id="usPassField">
+            <label for="usPass">Contraseña (mínimo 6 caracteres)</label>
+            <div class="pass-row">
+              <input type="password" id="usPass" autocomplete="new-password" spellcheck="false" placeholder="Vacía si la cuenta ya existe">
+              <button class="btn ghost small" type="button" id="usPassShow" aria-pressed="false">Mostrar</button>
+              <button class="btn ghost small" type="button" id="usPassGen">Generar</button>
             </div>
           </div>
           <div class="field">
@@ -307,6 +324,7 @@
             <button class="btn" type="submit" id="usSubmitBtn">Añadir</button>
             <button class="btn ghost" type="button" id="usCancelBtn" style="display:none;">Cancelar edición</button>
           </div>
+          <div class="form-msg" id="usMsg" role="status" hidden></div>
         </form>
       </div>
       <div class="card">
@@ -337,6 +355,6 @@
   </main>
 </div>
 
-<script type="module" src="js/app.js?v=25"></script>
+<script type="module" src="js/app.js?v=26"></script>
 </body>
 </html>

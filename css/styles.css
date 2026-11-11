@@ -505,6 +505,20 @@ tr:last-child td{border-bottom:none;}
 .date-pill.tarde{background:var(--brand-coral-bg);color:var(--brand-coral);}
 
 .btn:disabled{opacity:.45;cursor:not-allowed;filter:none;}
+/* ---- Usuarios: contraseña y mensajes ---- */
+#userForm{display:flex;flex-direction:column;gap:12px;}
+.pass-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+.pass-row input{flex:1 1 180px;min-width:0;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.02em;}
+.pass-row input:placeholder-shown{font-family:inherit;letter-spacing:normal;}
+.form-msg{border-radius:8px;padding:10px 12px;font-size:13.5px;line-height:1.45;border:1px solid var(--border);background:var(--ground);overflow-wrap:anywhere;}
+.form-msg.ok{background:var(--success-bg);border-color:var(--success);}
+.form-msg.bad{background:var(--danger-bg);border-color:var(--danger);}
+.form-msg.warn{background:var(--warning-bg);border-color:var(--warning);}
+.form-msg code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-weight:700;background:var(--surface);padding:1px 6px;border-radius:5px;user-select:all;}
+.pass-help{flex:1 1 100%;font-size:12.5px;color:var(--ink);background:var(--surface-2);border-radius:8px;padding:10px 12px;line-height:1.5;}
+.pass-help ol{margin:4px 0 0;padding-left:18px;}
+#cpMsg.ok{color:var(--success);}
+
 .btn.danger-ghost{background:none;color:var(--danger);border:1px solid var(--border);}
 .btn.danger-ghost:hover{border-color:var(--danger);}
 

@@ -4,7 +4,9 @@ import {
   getFirestore, collection, doc, addDoc, setDoc, updateDoc, deleteDoc, deleteField, onSnapshot, getDoc
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import {
-  getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut
+  getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut,
+  initializeAuth, inMemoryPersistence, createUserWithEmailAndPassword,
+  sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, updatePassword
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 
 var DEFAULT_EMAIL_DOMAIN = '@proyecto-oberti.app';
@@ -13,6 +15,12 @@ function normalizeLoginId(v){
   if(!v || v.indexOf('@') !== -1) return v;
   return v + DEFAULT_EMAIL_DOMAIN;
 }
+// Lo que la persona escribe en "Usuario o email" para entrar
+function loginNameOf(email){
+  email = email || '';
+  return email.slice(-DEFAULT_EMAIL_DOMAIN.length) === DEFAULT_EMAIL_DOMAIN ? email.slice(0, -DEFAULT_EMAIL_DOMAIN.length) : email;
+}
+function isUsernameAccount(email){ return loginNameOf(email) !== email; }
 
 var DAYS = [
   {code:'L',label:'Lunes'},{code:'M',label:'Martes'},{code:'X',label:'Miércoles'},
@@ -47,6 +55,7 @@ var state = {
   editingChildId:null,
   editingEventId:null,
   editingUserEmail:null,
+  passHelpFor:null,
   isAdmin:false,
   isMonitor:false,
   currentEmail:null,
@@ -188,6 +197,53 @@ adminLogoutBtn.addEventListener('click', function(){
   closeMobileMenu();
 });
 
+// ---------- Cambiar mi propia contraseña ----------
+var changePassForm = document.getElementById('changePassForm');
+var cpMsg = document.getElementById('cpMsg');
+function closeChangePass(){
+  changePassForm.hidden = true;
+  changePassForm.reset();
+  cpMsg.textContent = ''; cpMsg.classList.remove('ok');
+}
+document.getElementById('changePassBtn').addEventListener('click', function(){
+  changePassForm.hidden = !changePassForm.hidden;
+  cpMsg.textContent = ''; cpMsg.classList.remove('ok');
+  if(!changePassForm.hidden) document.getElementById('cpCurrent').focus();
+});
+document.getElementById('cpCancel').addEventListener('click', closeChangePass);
+changePassForm.addEventListener('submit', function(e){
+  e.preventDefault();
+  var user = auth && auth.currentUser;
+  if(!user) return;
+  var cur = document.getElementById('cpCurrent').value;
+  var nw = document.getElementById('cpNew').value;
+  var nw2 = document.getElementById('cpNew2').value;
+  cpMsg.classList.remove('ok');
+  if(nw.length < 6){ cpMsg.textContent = 'La nueva contraseña debe tener al menos 6 caracteres.'; return; }
+  if(nw !== nw2){ cpMsg.textContent = 'Las dos contraseñas nuevas no coinciden.'; return; }
+  if(nw === cur){ cpMsg.textContent = 'La nueva contraseña es igual que la actual.'; return; }
+  var btn = document.getElementById('cpSubmit');
+  btn.disabled = true;
+  cpMsg.textContent = 'Guardando…';
+  reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, cur))
+    .then(function(){ return updatePassword(user, nw); })
+    .then(function(){
+      changePassForm.reset();
+      cpMsg.textContent = 'Contraseña cambiada. Úsala la próxima vez que entres.';
+      cpMsg.classList.add('ok');
+      setTimeout(function(){ if(cpMsg.classList.contains('ok')) closeChangePass(); }, 3500);
+    })
+    .catch(function(err){
+      var code = err && err.code;
+      cpMsg.textContent =
+        (code==='auth/wrong-password' || code==='auth/invalid-credential' || code==='auth/invalid-login-credentials') ? 'La contraseña actual no es correcta.'
+        : code==='auth/weak-password' ? 'La nueva contraseña es demasiado débil (mínimo 6 caracteres).'
+        : code==='auth/too-many-requests' ? 'Demasiados intentos. Espera unos minutos y vuelve a probar.'
+        : 'No se pudo cambiar la contraseña ('+(code||'error')+').';
+    })
+    .finally(function(){ btn.disabled = false; });
+});
+
 function updateAuthUI(){
   var loggedIn = state.isMonitor;
   document.getElementById('mainContent').classList.toggle('locked', !loggedIn);
@@ -224,6 +280,7 @@ function updateAuthUI(){
     adminOpenBtn.hidden = false;
     adminLoginForm.hidden = true;
   }
+  if(!auth || !auth.currentUser) closeChangePass();
 }
 
 // ---------- tabs ----------
@@ -850,6 +907,65 @@ function renderUserForm(){
   document.getElementById('usSubmitBtn').textContent = editing ? 'Guardar cambios' : 'Añadir';
   document.getElementById('usCancelBtn').style.display = editing ? 'inline-flex' : 'none';
   document.getElementById('usEmail').disabled = !!editing;
+  // La contraseña solo se pone al crear la cuenta
+  document.getElementById('usPassField').hidden = !!editing;
+  if(editing) usPassEl.value = '';
+}
+
+// ---- Contraseña al crear usuario ----
+var usPassEl = document.getElementById('usPass');
+var usPassShow = document.getElementById('usPassShow');
+var usMsg = document.getElementById('usMsg');
+function setPassVisible(v){
+  usPassEl.type = v ? 'text' : 'password';
+  usPassShow.textContent = v ? 'Ocultar' : 'Mostrar';
+  usPassShow.setAttribute('aria-pressed', String(v));
+}
+usPassShow.addEventListener('click', function(){ setPassVisible(usPassEl.type === 'password'); });
+document.getElementById('usPassGen').addEventListener('click', function(){
+  // Sin letras/números que se confundan (l, 1, O, 0) para dictarla fácil
+  var chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  var arr = new Uint32Array(10);
+  (window.crypto || window.msCrypto).getRandomValues(arr);
+  var p = '';
+  for(var i=0;i<arr.length;i++) p += chars[arr[i] % chars.length];
+  usPassEl.value = p;
+  setPassVisible(true);
+});
+function showUserMsg(html, kind){
+  usMsg.innerHTML = html;
+  usMsg.className = 'form-msg' + (kind ? ' '+kind : '');
+  usMsg.hidden = false;
+}
+
+// Crea la cuenta en una instancia aparte de Firebase, sin guardar sesión,
+// para no cerrar la sesión del administrador que la está creando.
+var creatorAuth = null;
+function getCreatorAuth(){
+  if(!creatorAuth){
+    var creatorApp = initializeApp(firebaseConfig, 'crear-usuarios');
+    creatorAuth = initializeAuth(creatorApp, {persistence: inMemoryPersistence});
+  }
+  return creatorAuth;
+}
+function createAuthAccount(email, pass){
+  var a = getCreatorAuth();
+  return createUserWithEmailAndPassword(a, email, pass).then(function(){
+    return signOut(a).catch(function(){}).then(function(){ return 'created'; });
+  }, function(err){
+    if(err && err.code === 'auth/email-already-in-use') return 'exists';
+    throw err;
+  });
+}
+function authErrorText(code){
+  return code==='auth/invalid-email' ? 'Ese usuario o email no es válido. Usa letras, números, puntos o guiones, sin espacios.'
+    : code==='auth/weak-password' ? 'La contraseña es demasiado débil: mínimo 6 caracteres.'
+    : code==='auth/operation-not-allowed' ? 'Firebase no permite crear cuentas con email y contraseña. Actívalo en Firebase Console → Authentication → Método de acceso → Correo electrónico/contraseña.'
+    : (code==='auth/admin-restricted-operation') ? 'Firebase tiene bloqueado crear cuentas desde la web. En Firebase Console → Authentication → Configuración → Acciones de los usuarios, activa "Habilitar creación (registro)".'
+    : code==='auth/too-many-requests' ? 'Demasiados intentos seguidos. Espera unos minutos.'
+    : code==='auth/network-request-failed' ? 'Sin conexión. Revisa internet y vuelve a probar.'
+    : code==='permission-denied' ? 'No tienes permiso para guardar usuarios.'
+    : 'No se pudo completar ('+(code||'error')+').';
 }
 
 var usEmailEl = document.getElementById('usEmail');
@@ -858,6 +974,21 @@ usEmailEl.addEventListener('input', function(){
   var raw = usEmailEl.value.trim();
   var norm = normalizeLoginId(raw);
   usEmailHint.textContent = (raw && norm !== raw.toLowerCase()) ? ('Se creará/usará en Firebase como: '+norm) : '';
+  // Si ya tiene permisos (p. ej. al recrear una cuenta olvidada), rellenarlos
+  if(state.editingUserEmail) return;
+  var existing = state.roles.find(function(r){ return r.id===norm; });
+  if(existing){
+    document.getElementById('usNombre').value = existing.nombre || '';
+    usAdminEl.checked = !!existing.admin;
+    var p = existing.permisos || {};
+    document.getElementById('permNinos').checked = !!p.ninos;
+    document.getElementById('permBalance').checked = !!p.balance;
+    document.getElementById('permCalendario').checked = !!p.calendarioEditar;
+    document.getElementById('permJustificar').checked = !!p.justificar;
+    document.getElementById('permOrdenadores').checked = !!p.ordenadores;
+    usAdminEl.dispatchEvent(new Event('change'));
+    usEmailHint.textContent = 'Ya tiene acceso: se han rellenado su nombre y permisos.';
+  }
 });
 
 document.getElementById('usCancelBtn').addEventListener('click', function(){
@@ -865,6 +996,9 @@ document.getElementById('usCancelBtn').addEventListener('click', function(){
   document.getElementById('userForm').reset();
   document.getElementById('usEmail').disabled = false;
   usEmailHint.textContent = '';
+  usMsg.hidden = true;
+  setPassVisible(false);
+  usAdminEl.dispatchEvent(new Event('change'));
   renderUserForm();
 });
 
@@ -889,13 +1023,44 @@ document.getElementById('userForm').addEventListener('submit', function(e){
     justificar: document.getElementById('permJustificar').checked,
     ordenadores: document.getElementById('permOrdenadores').checked
   };
-  setDoc(doc(rolesCol, email), {nombre:nombre, admin:isAdminUser, permisos:permisos, actualizadoPor:state.currentEmail, actualizado:Date.now()});
-  state.editingUserEmail = null;
-  e.target.reset();
-  document.getElementById('usEmail').disabled = false;
-  usEmailHint.textContent = '';
-  usAdminEl.dispatchEvent(new Event('change'));
-  renderUserForm();
+  var editing = !!state.editingUserEmail;
+  var pass = editing ? '' : usPassEl.value;
+  if(pass && pass.length < 6){ showUserMsg('La contraseña debe tener al menos 6 caracteres.', 'bad'); usPassEl.focus(); return; }
+  if(/\s/.test(email)){ showUserMsg('El usuario no puede llevar espacios.', 'bad'); return; }
+
+  var form = e.target;
+  var btn = document.getElementById('usSubmitBtn');
+  btn.disabled = true;
+  showUserMsg(pass ? 'Creando la cuenta…' : 'Guardando…', '');
+
+  // 1) Crear la cuenta (si hay contraseña)  2) Guardar los permisos
+  var step = pass ? createAuthAccount(email, pass) : Promise.resolve(editing ? 'edited' : 'nopass');
+  step.then(function(result){
+    return setDoc(doc(rolesCol, email), {nombre:nombre, admin:isAdminUser, permisos:permisos, actualizadoPor:state.currentEmail, actualizado:Date.now()})
+      .then(function(){ return result; });
+  }).then(function(result){
+    var quien = escapeHtml(nombre || loginNameOf(email));
+    var login = '<code>'+escapeHtml(loginNameOf(email))+'</code>';
+    if(result==='created'){
+      showUserMsg('Cuenta creada para '+quien+'. Para entrar, en "Usuario o email" escribe '+login+' y la contraseña <code>'+escapeHtml(pass)+'</code>. Pásaselo y dile que la cambie con "Cambiar mi contraseña".', 'ok');
+    } else if(result==='exists'){
+      showUserMsg('Esa cuenta ya existía, así que se han guardado sus permisos pero <b>su contraseña sigue siendo la de antes</b>, no la que has escrito.', 'warn');
+    } else if(result==='edited'){
+      showUserMsg('Cambios guardados para '+quien+'.', 'ok');
+    } else {
+      showUserMsg('Permisos guardados para '+quien+'. No has puesto contraseña: si su cuenta aún no existía, no podrá entrar. En ese caso pulsa "Quitar acceso" y vuelve a añadirlo con contraseña.', 'warn');
+    }
+    state.editingUserEmail = null;
+    form.reset();
+    setPassVisible(false);
+    document.getElementById('usEmail').disabled = false;
+    usEmailHint.textContent = '';
+    usAdminEl.dispatchEvent(new Event('change'));
+    renderUserForm();
+  }).catch(function(err){
+    console.error(err);
+    showUserMsg(authErrorText(err && err.code), 'bad');
+  }).finally(function(){ btn.disabled = false; });
 });
 
 function startEditUser(u){
@@ -915,6 +1080,28 @@ function startEditUser(u){
 }
 
 var PERM_LABELS = {ninos:'Niños', balance:'Balance', calendarioEditar:'Calendario', justificar:'Justificar', ordenadores:'Ordenadores'};
+
+// Ayuda para cambiar la contraseña de otra persona.
+// Firebase no deja fijar la contraseña de otro usuario desde la web (haría falta un servidor),
+// así que: con email real se le manda un correo; con nombre de usuario hay que recrear la cuenta.
+function passHelpHtml(u){
+  var login = escapeHtml(loginNameOf(u.id));
+  if(!isUsernameAccount(u.id)){
+    return '<div class="pass-help">'
+      + 'Se le enviará un correo a <b>'+escapeHtml(u.id)+'</b> con un enlace para elegir una contraseña nueva. Sus permisos no cambian.'
+      + '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;">'
+      + '<button class="btn small" type="button" data-reset-mail="'+escapeHtml(u.id)+'">Enviar correo</button>'
+      + '<span class="reset-note"></span></div></div>';
+  }
+  return '<div class="pass-help">'
+    + '<b>'+login+'</b> entra con nombre de usuario, sin email real, así que no se le puede mandar un correo.'
+    + '<br>Si <b>recuerda</b> su contraseña, que la cambie él/ella misma con "Cambiar mi contraseña" (abajo a la izquierda, tras entrar).'
+    + '<br>Si la ha <b>olvidado</b>:'
+    + '<ol>'
+    + '<li>En <a href="https://console.firebase.google.com/project/proyecto-oberti/authentication/users" target="_blank" rel="noopener">Firebase Console → Authentication</a>, busca <b>'+escapeHtml(u.id)+'</b>, abre el menú ⋮ y pulsa <b>Eliminar cuenta</b>.</li>'
+    + '<li>Vuelve aquí, escribe <b>'+login+'</b> en "Usuario o email", pon una contraseña nueva y pulsa Añadir. Sus permisos se rellenan solos.</li>'
+    + '</ol></div>';
+}
 function renderUserList(){
   var el = document.getElementById('userList');
   if(!el) return;
@@ -939,15 +1126,37 @@ function renderUserList(){
       ? '<span class="chip on">Administrador/a</span>'
       : (Object.keys(PERM_LABELS).filter(function(k){ return u.permisos && u.permisos[k]; })
           .map(function(k){ return '<span class="chip">'+PERM_LABELS[k]+'</span>'; }).join('') || '<span class="chip">sin permisos</span>');
+    var isMe = u.id===state.currentEmail;
     return '<div class="child-row">'
-      + '<div class="child-name">'+escapeHtml(u.nombre||'(sin nombre)')+'<span class="sub">'+escapeHtml(u.id)+'</span></div>'
+      + '<div class="child-name">'+escapeHtml(u.nombre||'(sin nombre)')+'<span class="sub">Entra como: '+escapeHtml(loginNameOf(u.id))+'</span></div>'
       + '<div class="child-days">'+badges+'</div>'
       + '<div class="child-actions">'
-        + '<button class="btn ghost small" data-edit-user="'+u.id+'">Editar</button>'
-        + (u.id===state.currentEmail ? '' : '<button class="btn ghost small" data-del-user="'+u.id+'">Quitar acceso</button>')
+        + '<button class="btn ghost small" data-edit-user="'+escapeHtml(u.id)+'">Editar</button>'
+        + (isMe ? '' : '<button class="btn ghost small" data-pass-user="'+escapeHtml(u.id)+'" aria-expanded="'+(state.passHelpFor===u.id)+'">Contraseña</button>')
+        + (isMe ? '' : '<button class="btn ghost small" data-del-user="'+escapeHtml(u.id)+'">Quitar acceso</button>')
       + '</div>'
+      + (state.passHelpFor===u.id && !isMe ? passHelpHtml(u) : '')
       + '</div>';
   }).join('');
+  el.querySelectorAll('[data-pass-user]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      state.passHelpFor = state.passHelpFor===btn.dataset.passUser ? null : btn.dataset.passUser;
+      renderUserList();
+    });
+  });
+  el.querySelectorAll('[data-reset-mail]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var email = btn.dataset.resetMail;
+      var note = btn.parentNode.querySelector('.reset-note');
+      btn.disabled = true;
+      sendPasswordResetEmail(auth, email).then(function(){
+        note.textContent = 'Correo enviado a '+email+'. Que mire también la carpeta de spam.';
+      }, function(err){
+        note.textContent = authErrorText(err && err.code);
+        btn.disabled = false;
+      });
+    });
+  });
   el.querySelectorAll('[data-edit-user]').forEach(function(btn){
     btn.addEventListener('click', function(){
       var u = state.roles.find(function(x){return x.id===btn.dataset.editUser;});
